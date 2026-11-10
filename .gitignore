@@ -21,3 +21,6 @@ dist/
 workspace/
 *.db
 logs/
+
+# Editor settings specific to each machine
+.vscode/
