@@ -491,9 +491,9 @@ Una interfaz web simple se agrega solo si sobra tiempo.
 modelo candidato y su tasa de JSON válido. El juez de las reglas L usa un modelo distinto del
 generador.
 
-**Organización del código.** `[POR CONFIRMAR]` Un paquete `agora` con un módulo por pieza:
-`contracts` (artefactos), `llm`, `agents`, `board` (tablero), `orchestrator`, `audit`, `events`,
-`tools` y `cli`.
+**Organización del código.** Un paquete `agora` en `src/agora`. Cada módulo se crea cuando un
+bloque lo necesita, empezando por `contracts` (artefactos), y se prefiere el código simple y
+legible a una estructura completa desde el inicio.
 
 ## 12. Plan de bloques
 
@@ -547,6 +547,7 @@ del MVP en un contenedor de Docker y una interfaz web simple.
 9. Un solo flujo de eventos para registro, traza, terminal y hooks.
 10. Cambios solo después de la entrega, por la fase más temprana afectada y con confirmación.
 11. Interfaz de terminal; web solo si sobra tiempo. Repositorio propio.
+12. Módulos creados conforme los necesita cada bloque, con código simple antes que estructura completa.
 
 **Abiertas:**
 
@@ -555,4 +556,3 @@ del MVP en un contenedor de Docker y una interfaz web simple.
 3. Modelo generador, modelo juez y modelo alterno (sección 11).
 4. Presupuesto por ejecución: llamadas y tokens máximos.
 5. Cliente de modelos: HTTP propio o SDK compatible con OpenAI.
-6. Organización del código en módulos (sección 11).
