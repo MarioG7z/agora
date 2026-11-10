@@ -1,0 +1,23 @@
+# Local working notes and assistant guide, never versioned
+CLAUDE.md
+*.local.md
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+
+# Runtime output: generated MVPs, run databases and logs
+workspace/
+*.db
+logs/
