@@ -27,7 +27,8 @@ async def test_agent_retries_after_invalid_answer():
     artifact = await agent.run("listar productos")
 
     assert artifact.id == "ASK-1"
-    assert model.index == 2
+    assert len(model.received) == 2
+    assert "description" in model.received[1]
 
 
 @pytest.mark.asyncio
@@ -37,3 +38,5 @@ async def test_agent_gives_up_after_three_invalid_answers():
 
     with pytest.raises(SchemaValidationError, match="asker"):
         await agent.run("listar productos")
+
+    assert len(model.received) == 3
