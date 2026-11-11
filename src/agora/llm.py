@@ -1,3 +1,10 @@
+from typing import Protocol
+
+
+class ModelClient(Protocol):
+    async def complete(self, system: str, user: str) -> str: ...
+
+
 class FakeModel:
     def __init__(self, responses: list[str]):
         self.responses = responses
