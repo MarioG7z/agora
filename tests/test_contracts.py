@@ -1,7 +1,19 @@
 import pytest
 from pydantic import ValidationError
 
-from agora.contracts import PRD, Ask, Finding, Requirement, ResearchBrief
+from agora.contracts import (
+    PRD,
+    Ask,
+    ExecutedTest,
+    Finding,
+    Implementation,
+    Interface,
+    PlannedFile,
+    PlannedTest,
+    Requirement,
+    ResearchBrief,
+    Spec,
+)
 
 
 def test_ask_parses_from_json():
@@ -69,3 +81,68 @@ def test_prd_without_acceptance_criteria_fails():
     """
     with pytest.raises(ValidationError, match="acceptance_criteria"):
         PRD.model_validate_json(raw_json)
+
+
+def test_interface_parses_from_json():
+    raw_json = '{"name": "GET /products", "covers": ["REQ-1", "REQ-2"]}'
+    interface = Interface.model_validate_json(raw_json)
+    assert interface.name == "GET /products"
+
+
+def test_plannedfile_parses_from_json():
+    raw_json = '{"path": "app/main.py", "purpose": "Define los endpoints de productos"}'
+    plannedfile = PlannedFile.model_validate_json(raw_json)
+    assert plannedfile.path == "app/main.py"
+
+
+def test_plannedtest_parses_from_json():
+    raw_json = """
+    {
+       "id": "T-1",
+        "description": "GET /products?category=bebidas devuelve solo bebidas",
+        "covers": ["REQ-2"]
+    }
+    """
+    plannedtest = PlannedTest.model_validate_json(raw_json)
+    assert plannedtest.id == "T-1"
+
+
+def test_spec_parses_from_json():
+    raw_json = """
+    {
+        "interfaces": [
+            {"name": "GET /products", "covers": ["REQ-1", "REQ-2"]}
+        ],
+        "files": [
+            {"path": "app/main.py", "purpose": "Define los endpoints de productos"}
+        ],
+        "tests": [
+            {
+                "id": "T-1",
+                "description": "GET /products?category=bebidas devuelve solo bebidas",
+                  "covers": ["REQ-2"]
+            }
+        ]
+    }
+    """
+    spec = Spec.model_validate_json(raw_json)
+    assert spec.interfaces[0].name == "GET /products"
+
+
+def test_executedtest_parses_from_json():
+    raw_json = '{"test_id": "T-1", "passed": true, "output": "1 passed"}'
+    executedtest = ExecutedTest.model_validate_json(raw_json)
+    assert executedtest.test_id == "T-1"
+
+
+def test_implementation_parses_from_json():
+    raw_json = """
+    {
+        "files": ["app/main.py", "tests/test_products.py"],
+        "test_results": [
+            {"test_id": "T-1", "passed": true, "output": "1 passed"}
+        ]
+    }
+    """
+    implementation = Implementation.model_validate_json(raw_json)
+    assert len(implementation.files) == 2
