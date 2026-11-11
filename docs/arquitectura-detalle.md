@@ -231,6 +231,10 @@ una tabla; cualquier otra lanza un error. Por ejemplo, una tarea no puede pasar 
 | `aprobada → invalidada` | El orquestador, en la cascada de invalidación |
 | `aprobada → en_curso` | El usuario, al confirmar un cambio que entra por esa fase |
 | `en_curso → pendiente` | El orquestador, al reanudar una ejecución interrumpida |
+| `invalidada → pendiente` | El orquestador, cuando las dependencias vuelven a estar aprobadas |
+| `esperando_usuario → en_curso` | El usuario, al decidir que la tarea se reintente |
+
+Cada vez que una tarea entra a `en_curso` cuenta un intento nuevo.
 
 ### 6.3 Dependencias como grafo
 
@@ -238,10 +242,11 @@ Las tareas y sus dependencias forman un **grafo dirigido acíclico** (DAG): las 
 tarea a las que dependen de ella y no hay ciclos. De ahí salen dos operaciones:
 
 - **Qué ejecutar:** una tarea pasa a `en_curso` solo cuando todas sus dependencias están aprobadas.
-  Es un orden topológico del grafo.
+  Es un orden topológico del grafo, calculado con `graphlib` de la biblioteca estándar. Al crear el
+  tablero se rechazan las dependencias desconocidas y los ciclos.
 - **Invalidación en cascada:** cuando una tarea produce una versión nueva de su artefacto, se
-  recorre el grafo hacia adelante (en anchura o en profundidad) y toda tarea alcanzable pasa a
-  `invalidada`.
+  recorre el grafo hacia adelante, en anchura, y toda tarea alcanzable que ya tenía resultado
+  (aprobada o fallida) pasa a `invalidada`. Las que seguían pendientes simplemente esperan.
 
 Las versiones anteriores de cada artefacto no se borran; quedan en el historial para mostrar qué
 cambió y por qué.
@@ -252,6 +257,11 @@ Si el proceso se interrumpe, al reanudar puede haber tareas en `en_curso` sin sa
 terminaron. La regla es tratarlas como no terminadas y devolverlas a `pendiente`. Para que esa
 regla no deje datos inconsistentes, el artefacto se guarda y la tarea se marca como hecha **en la
 misma transacción** de la base de datos: nunca existe una tarea aprobada sin su artefacto.
+
+La base de datos es SQLite, con dos tablas: `tasks` guarda el estado actual de cada tarea de una
+ejecución, y `artifact_versions` añade una fila cada vez que un artefacto cambia, sin borrar las
+anteriores. Una tarea que quedó `en_auditoría` conserva su artefacto, así que al reanudar basta con
+volver a auditarlo.
 
 ## 7. Fallos y re-ejecución
 
