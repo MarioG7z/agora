@@ -157,15 +157,18 @@ Esta misma lógica se extiende al diseño del esquema: **cada campo debe tener u
 
 ### 5.2 Campos principales
 
-Primera versión de los campos. Los nombres definitivos se fijan al escribir los modelos de Pydantic,
-y esta tabla se actualiza entonces para reflejarlos.
+Campos tal como están en `src/agora/contracts.py`. Un campo nuevo entra solo cuando algún consumidor
+(otra fase o una regla del auditor) lo necesita.
 
-| Artefacto | Campos clave |
+| Artefacto | Campos |
 |---|---|
-| `ResearchBrief` | problema; pedidos `[{id: ASK-n, descripción}]`; hallazgos `[{afirmación, fuente}]`; supuestos; alcance dentro y fuera |
-| `PRD` | requisitos `[{id: REQ-n, descripción, criterios_aceptación[], cubre: [ASK]}]`; fuera de alcance |
-| `Spec` | modelos de datos; interfaces `[{nombre, cubre: [REQ]}]`; archivos `[{ruta, propósito}]`; pruebas `[{id: T-n, descripción, cubre: [REQ]}]` |
-| `Implementation` | archivos escritos; resultado por prueba (pasa o falla, con su salida); notas |
+| `ResearchBrief` | `problem`; `asks: [{id: ASK-n, description}]`; `findings: [{claim, source}]` |
+| `PRD` | `requirements: [{id: REQ-n, description, acceptance_criteria[], covers: [ASK]}]` |
+| `Spec` | `interfaces: [{name, covers: [REQ]}]`; `files: [{path, purpose}]`; `tests: [{id: T-n, description, covers: [REQ]}]` |
+| `Implementation` | `files[]` (rutas escritas); `test_results: [{test_id, passed, output}]` |
+
+Frente a la primera versión quedaron fuera los supuestos, el alcance, los modelos de datos de la
+Spec y las notas de la implementación, porque ningún consumidor los necesitaba todavía.
 
 ### 5.3 La cadena de trazabilidad
 
