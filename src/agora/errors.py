@@ -12,3 +12,7 @@ class SchemaValidationError(Exception):
 
 class AuditRejected(Exception):
     """The auditor rejected the artifact."""
+
+
+class InvalidTransition(Exception):
+    """A task tried to move to a state not allowed from its current one."""
