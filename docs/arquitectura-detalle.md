@@ -157,15 +157,18 @@ Esta misma lógica se extiende al diseño del esquema: **cada campo debe tener u
 
 ### 5.2 Campos principales
 
-Primera versión de los campos. Los nombres definitivos se fijan al escribir los modelos de Pydantic,
-y esta tabla se actualiza entonces para reflejarlos.
+Campos tal como están en `src/agora/contracts.py`. Un campo nuevo entra solo cuando algún consumidor
+(otra fase o una regla del auditor) lo necesita.
 
-| Artefacto | Campos clave |
+| Artefacto | Campos |
 |---|---|
-| `ResearchBrief` | problema; pedidos `[{id: ASK-n, descripción}]`; hallazgos `[{afirmación, fuente}]`; supuestos; alcance dentro y fuera |
-| `PRD` | requisitos `[{id: REQ-n, descripción, criterios_aceptación[], cubre: [ASK]}]`; fuera de alcance |
-| `Spec` | modelos de datos; interfaces `[{nombre, cubre: [REQ]}]`; archivos `[{ruta, propósito}]`; pruebas `[{id: T-n, descripción, cubre: [REQ]}]` |
-| `Implementation` | archivos escritos; resultado por prueba (pasa o falla, con su salida); notas |
+| `ResearchBrief` | `problem`; `asks: [{id: ASK-n, description}]`; `findings: [{claim, source}]` |
+| `PRD` | `requirements: [{id: REQ-n, description, acceptance_criteria[], covers: [ASK]}]` |
+| `Spec` | `interfaces: [{name, covers: [REQ]}]`; `files: [{path, purpose}]`; `tests: [{id: T-n, description, covers: [REQ]}]` |
+| `Implementation` | `files[]` (rutas escritas); `test_results: [{test_id, passed, output}]` |
+
+Frente a la primera versión quedaron fuera los supuestos, el alcance, los modelos de datos de la
+Spec y las notas de la implementación, porque ningún consumidor los necesitaba todavía.
 
 ### 5.3 La cadena de trazabilidad
 
@@ -491,9 +494,9 @@ Una interfaz web simple se agrega solo si sobra tiempo.
 modelo candidato y su tasa de JSON válido. El juez de las reglas L usa un modelo distinto del
 generador.
 
-**Organización del código.** `[POR CONFIRMAR]` Un paquete `agora` con un módulo por pieza:
-`contracts` (artefactos), `llm`, `agents`, `board` (tablero), `orchestrator`, `audit`, `events`,
-`tools` y `cli`.
+**Organización del código.** Un paquete `agora` en `src/agora`. Cada módulo se crea cuando un
+bloque lo necesita, empezando por `contracts` (artefactos), y se prefiere el código simple y
+legible a una estructura completa desde el inicio.
 
 ## 12. Plan de bloques
 
@@ -547,6 +550,7 @@ del MVP en un contenedor de Docker y una interfaz web simple.
 9. Un solo flujo de eventos para registro, traza, terminal y hooks.
 10. Cambios solo después de la entrega, por la fase más temprana afectada y con confirmación.
 11. Interfaz de terminal; web solo si sobra tiempo. Repositorio propio.
+12. Módulos creados conforme los necesita cada bloque, con código simple antes que estructura completa.
 
 **Abiertas:**
 
@@ -555,4 +559,3 @@ del MVP en un contenedor de Docker y una interfaz web simple.
 3. Modelo generador, modelo juez y modelo alterno (sección 11).
 4. Presupuesto por ejecución: llamadas y tokens máximos.
 5. Cliente de modelos: HTTP propio o SDK compatible con OpenAI.
-6. Organización del código en módulos (sección 11).
