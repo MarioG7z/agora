@@ -507,9 +507,9 @@ Los bloques se construyen en este orden.
 |---|---|---|---|
 | B0 Andamiaje | `pyproject`, ruff, pytest, estructura de carpetas | `pytest` corre sin pruebas y ruff pasa | `chore/andamiaje` |
 | B1 Contratos y cliente | Modelos Pydantic de los artefactos; interfaz del cliente de modelos y modelo simulado | Pruebas de validación de cada artefacto | `feat/contratos` |
-| B2 Agente base | Llamada al modelo, validación, reintento con el error, errores por tipo, eventos | Un agente con el simulado reintenta ante un JSON inválido | `feat/agente-base` |
+| B2 Agente base | Llamada al modelo, validación, reintento con el error, errores por tipo | Un agente con el simulado reintenta ante un JSON inválido | `feat/agente-base` |
 | B3 Tablero | Tareas, intentos, transiciones validadas, grafo de dependencias, SQLite | Pruebas de transiciones prohibidas, cascada y reanudación | `feat/tablero` |
-| B4 Orquestador | Ejecución en orden topológico de los cuatro agentes, bus de eventos, streaming | Ejecución completa con el simulado, con eventos en vivo | `feat/orquestador` |
+| B4 Orquestador | Ejecución en orden topológico de los cuatro agentes, bus de eventos, eventos de agentes y tareas, streaming | Ejecución completa con el simulado, con eventos en vivo | `feat/orquestador` |
 | B5 Auditor | Reglas C, veredicto, política de re-ejecución por capas | El simulado entrega una Spec defectuosa; el auditor la rechaza y el segundo intento pasa | `feat/auditor` |
 | B6 Herramientas | Tavily con límite de tasa y reintentos, lectura de archivos, escritura en la carpeta de trabajo, pytest en subproceso con límite de tiempo | Pruebas con respuestas grabadas de Tavily | `feat/herramientas` |
 | B7 Ciclo con el usuario | Árbol en vivo, entrega, comandos y cambios con confirmación y cascada | Un cambio de ejemplo entra por la fase correcta | `feat/ciclo-usuario` |
