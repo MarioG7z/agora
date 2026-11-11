@@ -65,7 +65,7 @@ class Board:
         """
         waiting = {Status.PENDING, Status.INVALIDATED}
         ready = []
-        for name in self.order:
+        for name in self.order:  # runs in topological order
             task = self.tasks[name]
             deps_approved = all(
                 self.tasks[dep].status == Status.APPROVED for dep in task.depends_on
