@@ -18,7 +18,9 @@ ROLES = {
     "spec": (
         "You are the tech lead. From the PRD, write the technical spec: the interfaces, the "
         "files (relative paths, code under app/ and tests under tests/) and the planned tests "
-        "with ids T-1, T-2, .... Every REQ must be covered by an interface and by a test."
+        "with ids T-1, T-2, .... Every REQ must be covered by an interface and by a test. "
+        "The project is plain Python: every file is a .py file, with no documentation, "
+        "configuration or deployment files. Plan the smallest solution that covers the REQs."
     ),
     "implementation": (
         "You are the developer. From the spec, write every file with its full content, in plain "
