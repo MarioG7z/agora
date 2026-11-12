@@ -3,6 +3,8 @@
 The PRD agent first forgets ASK-2, so the auditor rejects it and the second attempt passes.
 """
 
+import asyncio
+
 from agora.agent import Agent
 from agora.board import Board, Task
 from agora.contracts import (
@@ -136,10 +138,25 @@ def make_agents(models: dict[str, ModelClient], workspace: Workspace) -> dict[st
     }
 
 
-def demo_models() -> dict[str, ModelClient]:
-    return {
+class PausedModel:
+    """Waits before answering, so the scripted demo looks like a real model call on screen."""
+
+    def __init__(self, model: ModelClient, seconds: float):
+        self.model = model
+        self.seconds = seconds
+
+    async def complete(self, system: str, user: str) -> str:
+        await asyncio.sleep(self.seconds)
+        return await self.model.complete(system, user)
+
+
+def demo_models(pause: float = 0) -> dict[str, ModelClient]:
+    models: dict[str, ModelClient] = {
         "research": FakeModel([BRIEF.model_dump_json()]),
         "prd": FakeModel([PRD_MISSING_ASK_2.model_dump_json(), PRD_COMPLETE.model_dump_json()]),
         "spec": FakeModel([SPEC.model_dump_json()]),
         "implementation": FakeModel([CODE.model_dump_json()]),
     }
+    if pause:
+        models = {name: PausedModel(model, pause) for name, model in models.items()}
+    return models
