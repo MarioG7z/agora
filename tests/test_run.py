@@ -93,3 +93,25 @@ def test_event_log_writes_one_json_line_per_event(tmp_path):
     lines = (tmp_path / "logs" / "run-1.jsonl").read_text(encoding="utf-8").splitlines()
     assert [json.loads(line)["kind"] for line in lines] == ["started", "approved"]
     assert json.loads(lines[0])["run_id"] == "run-1"
+
+
+class BrokenModel:
+    """A model whose provider rejects the key: the error the client raises after a 401."""
+
+    async def complete(self, system: str, user: str) -> str:
+        from agora.errors import PermanentError
+
+        raise PermanentError("OpenRouter answered 401: invalid key")
+
+
+@pytest.mark.asyncio
+async def test_model_failure_fails_the_task_instead_of_crashing(tmp_path):
+    models = demo_models()
+    models["research"] = BrokenModel()
+    orchestrator, store = build(tmp_path, models)
+
+    events = await collect(orchestrator)
+
+    assert events == [("started", "research"), ("failed", "research")]
+    assert orchestrator.board.tasks["research"].status == Status.FAILED
+    store.close()

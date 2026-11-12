@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from agora.auditor import Auditor
 from agora.board import Board, Status, Task
-from agora.errors import SchemaValidationError
+from agora.errors import PermanentError, SchemaValidationError, TransientError
 from agora.store import BoardStore
 
 MAX_PHASE_ATTEMPTS = 3  # how many times the auditor may send a task back before it fails
@@ -73,7 +73,8 @@ class Orchestrator:
             try:
                 # find the agent by the task name and run it
                 artifact = await self.agents[task.name].run(user + feedback)
-            except SchemaValidationError as error:
+            except (SchemaValidationError, TransientError, PermanentError) as error:
+                # The agent gave up, or the model kept failing after its own retries.
                 task.move_to(Status.FAILED)
                 self.save()
                 yield Event(kind="failed", task=task.name, detail=str(error), attempt=task.attempts)
