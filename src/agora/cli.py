@@ -16,7 +16,7 @@ from agora.llm import ModelClient
 from agora.openrouter import OpenRouterModel
 from agora.orchestrator import Orchestrator
 from agora.store import BoardStore
-from agora.terminal import LiveTree
+from agora.terminal import LiveTree, delivery
 from agora.workspace import Workspace
 
 
@@ -61,8 +61,8 @@ async def run(
                 tree.update(event)
                 live.update(tree.render())
     store.close()
-    console.print(f"\nCódigo generado en {workspace.root}")
-    console.print(f"Registro de eventos en {log.path}")
+    console.print()
+    console.print(delivery(board, workspace.root, log.path))
 
 
 def main() -> None:

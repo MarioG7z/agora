@@ -25,3 +25,8 @@ async def test_demo_run_draws_the_tree_with_the_rejected_prd(tmp_path, monkeypat
     assert "✗ intento 1:" in output  # the rejected PRD stays under its task, with its reason
     assert "ASK-2" in output
     assert "Último rechazo del auditor · PRD, intento 1" in output
+    # The delivery: one row per phase, the traceability chain and where everything was left.
+    assert "Entrega" in output
+    assert "ASK-2 Filtrar productos por categoria" in output
+    assert "✓ pasa" in output
+    assert "Registro de eventos en logs" in output

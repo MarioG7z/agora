@@ -1,11 +1,15 @@
-"""What the user sees in the terminal: the live tree while a run works."""
+"""What the user sees in the terminal: the live tree while a run works, then the delivery."""
+
+from pathlib import Path
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
 from agora.board import Board, Status
+from agora.contracts import PRD, Implementation, ResearchBrief, Spec
 from agora.orchestrator import MAX_PHASE_ATTEMPTS, Event
 
 # Task name -> (phase shown to the user, agent that works on it).
@@ -67,3 +71,45 @@ class LiveTree:
         what = "Último rechazo del auditor" if event.kind == "rejected" else "Fallo"
         title = f"{what} · {phase_name(event.task)}, intento {event.attempt}"
         return Group(tree, Panel(event.detail, title=title, title_align="left", border_style="red"))
+
+
+def delivery(board: Board, code: Path, log: Path) -> RenderableType:
+    """The summary shown when the run ends: one row per phase and where everything was left."""
+    phases = Table(title="Entrega", title_justify="left")
+    for column in ["Fase", "Agente", "Estado", "Intentos"]:
+        phases.add_column(column)
+    for name in board.order:
+        task = board.tasks[name]
+        phase, agent = PHASES.get(name, (name, ""))
+        symbol, label, style = STATUS[task.status]
+        phases.add_row(phase, agent, Text(f"{symbol} {label}", style), str(task.attempts))
+    parts: list[RenderableType] = [phases]
+    trace = traceability(board)
+    if trace is not None:
+        parts.append(trace)
+    parts.append(Text(f"Código generado en {code}\nRegistro de eventos en {log}"))
+    return Group(*parts)
+
+
+def traceability(board: Board) -> Table | None:
+    """The chain ASK -> REQ -> test -> result, read from the artifacts of a finished run."""
+    if any(
+        name not in board.tasks or board.tasks[name].status != Status.APPROVED for name in PHASES
+    ):
+        return None  # without every artifact approved there is no complete chain to show
+    brief = ResearchBrief.model_validate_json(board.tasks["research"].artifact)
+    prd = PRD.model_validate_json(board.tasks["prd"].artifact)
+    spec = Spec.model_validate_json(board.tasks["spec"].artifact)
+    code = Implementation.model_validate_json(board.tasks["implementation"].artifact)
+    passed = {result.test_id: result.passed for result in code.test_results}
+
+    table = Table(title="Trazabilidad", title_justify="left")
+    for column in ["Pedido", "Requisito", "Pruebas", "Estado"]:
+        table.add_column(column)
+    for ask in brief.asks:
+        reqs = [req.id for req in prd.requirements if ask.id in req.covers]
+        tests = [test.id for test in spec.tests if set(test.covers) & set(reqs)]
+        ok = bool(tests) and all(passed.get(test, False) for test in tests)
+        state = Text("✓ pasa", "green") if ok else Text("✗ falla", "red")
+        table.add_row(f"{ask.id} {ask.description}", ", ".join(reqs), ", ".join(tests), state)
+    return table
