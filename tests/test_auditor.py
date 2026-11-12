@@ -1,4 +1,11 @@
-from agora.auditor import Auditor, check_implementation, check_prd, check_research, check_spec
+from agora.auditor import (
+    Auditor,
+    Verdict,
+    check_implementation,
+    check_prd,
+    check_research,
+    check_spec,
+)
 from agora.board import Board, Task
 from agora.contracts import (
     PRD,
@@ -148,3 +155,20 @@ def test_implementation_that_cannot_run_carries_the_pytest_error():
 
     assert failed["Every test in the Spec was run"] == "T-1, T-2"
     assert "flask" in failed["pytest reports no errors"]
+
+
+def test_unnamed_tests_warn_without_blocking():
+    implementation = Implementation(
+        files=[file.path for file in SPEC.files],
+        test_results=[
+            ExecutedTest(test_id="T-1", passed=True, output=""),
+            ExecutedTest(test_id="T-2", passed=True, output=""),
+        ],
+        unnamed_tests=["test_get_all_products"],
+    )
+    verdict = Verdict(
+        task="implementation", results=check_implementation(implementation, SPEC, None)
+    )
+
+    assert verdict.approved  # the warning does not block…
+    assert "test_get_all_products" in verdict.summary()  # …but the developer can read it

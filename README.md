@@ -85,24 +85,27 @@ python -m agora --run-id <ejecución> --change prd "Agregar busqueda por nombre"
 
 ## 5. Evidencia con modelo real
 
-Se hicieron trece ejecuciones con dos modelos de OpenRouter. Cada falla se documentó con su causa
-antes de cambiar código o prompts, y desde la quinta ejecución cada cambio se probó con al menos
-dos ejecuciones, porque el modelo varía entre llamadas. El registro completo está en
+Se hicieron diecinueve ejecuciones con dos modelos de OpenRouter. Cada falla se documentó con su
+causa antes de cambiar código o prompts, y desde la quinta ejecución cada cambio se probó con al
+menos dos ejecuciones, porque el modelo varía entre llamadas. El registro completo está en
 [docs/hallazgos-modelo-real.md](docs/hallazgos-modelo-real.md).
 
-La ejecución `real-13`, con `qwen/qwen3-coder-30b-a3b-instruct`, completó la cadena:
+Con `qwen/qwen3-coder-30b-a3b-instruct` y la configuración final, tres de las últimas cuatro
+ejecuciones completaron la cadena; antes de los dos últimos cambios, una de seis. Por ejemplo,
+`real-19`:
 
 | Fase | Resultado |
 |---|---|
 | Planning y PRD | Aprobados al primer intento: 2 pedidos, 2 requisitos |
 | Spec | Rechazada por planear pruebas sin archivo de pruebas; aprobada en el segundo intento |
-| Implementation | Rechazada dos veces (la primera, por importar Flask, que no está instalado); aprobada en el tercer intento |
+| Implementation | Rechazada porque las pruebas no llevaban el id de la Spec; con su código anterior y la forma esperada en el veredicto, aprobada en el segundo intento |
 
-Al repetir pytest sobre el código generado pasan 12 pruebas, entre ellas las 7 planeadas en la Spec.
+Al repetir pytest sobre el código generado pasan 9 de 9 pruebas.
 
 Los hallazgos principales fueron que un veredicto sin causa no permite al modelo corregirse, que un
-concepto sin definir en el prompt queda a interpretación del modelo, y que un defecto detectado en
-una fase puede nacer en una anterior.
+concepto sin definir en el prompt o en el veredicto queda a interpretación del modelo, que un
+reintento sin la respuesta anterior reescribe desde cero errores ya corregidos, y que un defecto
+detectado en una fase puede nacer en una anterior.
 
 ## 6. Código
 
@@ -142,7 +145,7 @@ Las pruebas usan el modelo simulado y respuestas HTTP grabadas: no llaman a ning
   original) necesitan un juez con modelo, que no está implementado.
 - La fase de Planning no usa todavía la búsqueda web; sus fuentes no se verifican.
 - Una fase rechazada se repite a sí misma; no sube a la fase anterior cuando el defecto nace antes.
-- El reintento recibe solo el último veredicto, y el modelo puede oscilar entre errores ya
-  corregidos.
+- Solo Implementation recibe en el reintento su respuesta anterior; las demás fases reciben solo
+  el último veredicto.
 - El costo de cada ejecución no se registra.
 - El código generado se ejecuta sin aislamiento, solo acotado a su carpeta de trabajo.
