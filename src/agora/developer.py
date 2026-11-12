@@ -11,6 +11,10 @@ PYTEST_INI = "[pytest]\npythonpath = .\n"
 # A summary line of `pytest -rA`, for a test named after its Spec id: test_t2_... -> T-2.
 RESULT_LINE = re.compile(r"^(PASSED|FAILED|ERROR) \S+::test_t(\d+)\w*")
 
+# Any summary line of `pytest -rA`; group 1 is the test name, the part after the last "::".
+ANY_RESULT_LINE = re.compile(r"^(?:PASSED|FAILED) \S+::(\w+)")
+SPEC_ID_NAME = re.compile(r"test_t\d+")  # a name that carries its Spec id, like test_t2_...
+
 
 def parse_results(output: str) -> list[ExecutedTest]:
     tail = output[-2000:]  # the end of the output carries the tracebacks of the failures
@@ -35,6 +39,18 @@ def error_lines(output: str) -> list[str]:
     return lines[:5]
 
 
+def unnamed_tests(output: str) -> list[str]:
+    """Names of the tests that ran without their Spec id, e.g. test_get_all."""
+    names = []
+    for line in output.splitlines():
+        match = ANY_RESULT_LINE.match(line)
+        if match:
+            name = match.group(1)
+            if not SPEC_ID_NAME.match(name):
+                names.append(name)
+    return names[:10]
+
+
 class Developer:
     """The Implementation expert: the model writes the code, the code measures it."""
 
@@ -53,4 +69,5 @@ class Developer:
             files=[file.path for file in draft.files],
             test_results=parse_results(run.output),
             pytest_errors=error_lines(run.output),
+            unnamed_tests=unnamed_tests(run.output),
         )
