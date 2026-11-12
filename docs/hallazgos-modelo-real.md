@@ -1,14 +1,14 @@
 # Hallazgos de las corridas con modelo real
 
 **Fecha:** 2026-11-11, actualizado el 2026-11-12.
-**Alcance:** trece ejecuciones de AGORA con dos modelos reales sobre la tarea de ejemplo. Recoge qué
+**Alcance:** quince ejecuciones de AGORA con dos modelos reales sobre la tarea de ejemplo. Recoge qué
 falló, la causa comprobada o la hipótesis, qué se cambió y qué queda por decidir.
 
 ## 1. Condiciones
 
 | Dato | Valor |
 |---|---|
-| Modelos | `mistralai/ministral-8b-2512` (`real-1` a `real-9`) y `qwen/qwen3-coder-30b-a3b-instruct` (`real-10` a `real-13`), vía OpenRouter, el mismo para los cuatro expertos en cada ejecución |
+| Modelos | `mistralai/ministral-8b-2512` (`real-1` a `real-9`) y `qwen/qwen3-coder-30b-a3b-instruct` (`real-10` a `real-15`), vía OpenRouter, el mismo para los cuatro expertos en cada ejecución |
 | Tarea | "Una API para consultar un inventario de productos y filtrarlos por categoria" |
 | Herramientas | Sin búsqueda web: la fase de Planning todavía no usa Tavily |
 | Auditor | Solo reglas en código (reglas C, sección 8.2 del diseño) |
@@ -31,6 +31,8 @@ y del tablero guardado en SQLite (`workspace/agora.db`).
 | `real-11` | 85 s | Pasa hasta la Spec; Implementation falla sin archivos de pruebas |
 | `real-12` | 154 s | Pasa hasta la Spec; Implementation falla tras 3 rechazos |
 | `real-13` | 154 s | **Ejecución completa**, con un rechazo de la Spec y dos de Implementation |
+| `real-14` | 116 s | Pasa hasta la Spec; Implementation falla tras 3 rechazos |
+| `real-15` | 174 s | Pasa hasta la Spec; Implementation falla tras 3 rechazos |
 
 ## 2. Error sin causa (`real-1`)
 
@@ -190,7 +192,36 @@ bajo `tests/`.
   segundo y volvió a Flask en el tercero. Cada reintento recibe solo el último veredicto, así que el
   modelo puede oscilar entre errores ya corregidos.
 
-## 10. Decisiones
+## 10. Nombres de las pruebas y reintentos sin memoria (`real-14` y `real-15`)
+
+**Observado antes del cambio.** En una ejecución con Qwen fuera de esta serie, el veredicto de
+Implementation repitió tres veces "Every test in the Spec was run: T-1 … T-5", aunque las pruebas sí
+existían. Las funciones tenían nombres libres (`test_get_inventory_returns_200_ok`) en lugar del
+id de la Spec (`test_t1_...`), y el auditor no podía enlazarlas. El veredicto no decía esa causa.
+
+**Cambio.** Regla nueva en Implementation, de severidad **advertencia** (no bloquea): lista las
+pruebas ejecutadas cuyo nombre no lleva el id de la Spec. Es advertencia porque en `real-13` el
+Desarrollador añadió 5 pruebas extra con nombres libres a las 7 de la Spec, y esa ejecución era
+correcta.
+
+**Observado.**
+
+| Intento | `real-14` | `real-15` |
+|---|---|---|
+| 1 | Pruebas sin id; la advertencia lista sus nombres | Importa Flask |
+| 2 | Las mismas pruebas sin id | Pruebas con id, pero fallan: el código no tiene el módulo que importan |
+| 3 | Importa Flask | Importa Flask otra vez |
+
+- La advertencia llegó al veredicto, pero en `real-14` el modelo repitió los mismos nombres.
+- En `real-15`, el segundo intento corrigió los nombres y el tercero volvió a Flask, que ya se había
+  corregido en el segundo.
+
+**Causa comprobada.** Cada reintento de Implementation recibe la Spec y el último veredicto, pero no
+el código que el mismo agente escribió antes. El modelo no corrige su código: lo vuelve a escribir
+desde cero, y en cada versión puede reaparecer un error ya corregido. Es la causa de fondo de la
+oscilación observada en `real-12`.
+
+## 11. Decisiones
 
 **Tomadas**
 
@@ -202,6 +233,7 @@ bajo `tests/`.
 6. El prompt del Arquitecto pide un proyecto mínimo, solo en Python.
 7. El veredicto de Implementation incluye las líneas de error de pytest.
 8. Regla C: la Spec con pruebas planeadas debe tener un archivo bajo `tests/`.
+9. Regla C de advertencia: las pruebas ejecutadas sin el id de la Spec en su nombre.
 
 **Abiertas**
 
@@ -212,8 +244,9 @@ bajo `tests/`.
    corta produce muchos pedidos.
 3. Registrar cada llamada al modelo como evento, con sus tokens y costo, para medir el costo de una
    ejecución (criterio de B8).
-4. Pasar al reintento el historial de veredictos de la tarea, no solo el último, para evitar que
-   el modelo oscile entre errores ya corregidos (`real-12`).
+4. Pasar al reintento la respuesta anterior del agente, además del veredicto, para que corrija en
+   lugar de reescribir desde cero (hallazgo 10). Junto con el historial de veredictos, atacaría la
+   oscilación entre errores ya corregidos (`real-12`, `real-15`).
 5. Elegir el modelo por fase: con la evidencia de este documento, `qwen3-coder` mantiene el alcance
    y escribe código que pasa; `ministral-8b` infla el alcance desde Planning.
 
