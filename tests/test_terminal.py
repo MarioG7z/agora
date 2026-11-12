@@ -30,3 +30,22 @@ async def test_demo_run_draws_the_tree_with_the_rejected_prd(tmp_path, monkeypat
     assert "ASK-2 Filtrar productos por categoria" in output
     assert "✓ pasa" in output
     assert "Registro de eventos en logs" in output
+
+
+def test_working_task_shows_how_long_it_has_been_waiting():
+    from agora.board import Status
+    from agora.demo import make_board
+    from agora.orchestrator import Event
+    from agora.terminal import LiveTree
+
+    now = [100.0]  # a fake clock the test moves by hand
+    board = make_board()
+    tree = LiveTree(board, "run-1", "tarea", clock=lambda: now[0])
+    board.tasks["research"].move_to(Status.RUNNING)
+    tree.update(Event(kind="started", task="research", attempt=1))
+
+    now[0] = 112.0  # twelve seconds waiting for the model
+    console = recording_console()
+    console.print(tree.render())
+
+    assert "12 s" in console.file.getvalue()

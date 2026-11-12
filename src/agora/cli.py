@@ -56,6 +56,7 @@ async def run(
     real: bool,
     change: tuple[str, str] | None = None,
     console: Console | None = None,
+    pause: float = 0,
 ) -> None:
     console = console or Console()
     store = BoardStore(Path("workspace") / "agora.db")
@@ -76,7 +77,7 @@ async def run(
         board = make_board()
     workspace = Workspace(Path("workspace") / run_id)
     async with httpx.AsyncClient(timeout=120) as client:
-        models = real_models(client) if real else demo_models()
+        models = real_models(client) if real else demo_models(pause)
         orchestrator = Orchestrator(
             board,
             make_agents(models, workspace),
@@ -87,12 +88,12 @@ async def run(
         )
         log = EventLog(Path("logs") / f"{run_id}.jsonl")
         tree = LiveTree(board, run_id, request)
-        # The terminal is one more consumer of the events: it redraws the tree after each one.
-        with Live(tree.render(), console=console, refresh_per_second=8) as live:
+        # The terminal is one more consumer of the events. Live calls tree.render on its own
+        # several times per second, so the spinner and the clock move while a model call waits.
+        with Live(console=console, get_renderable=tree.render, refresh_per_second=8):
             async for event in orchestrator.run(request):
                 log.write(run_id, event)
                 tree.update(event)
-                live.update(tree.render())
     store.close()
     console.print()
     console.print(delivery(board, workspace.root, log.path))
@@ -110,5 +111,14 @@ def main() -> None:
         metavar=("FASE", "TEXTO"),
         help="Cambio a la ejecución terminada --run-id; FASE: research, prd, spec o implementation",
     )
+    parser.add_argument(
+        "--pausa",
+        type=float,
+        default=0,
+        metavar="SEGUNDOS",
+        help="Con el simulado, espera antes de cada respuesta, como un modelo real",
+    )
     args = parser.parse_args()
-    asyncio.run(run(args.request, args.run_id, args.resume, args.real, args.change))
+    asyncio.run(
+        run(args.request, args.run_id, args.resume, args.real, args.change, pause=args.pausa)
+    )

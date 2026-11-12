@@ -1,9 +1,12 @@
 """What the user sees in the terminal: the live tree while a run works, then the delivery."""
 
+import time
+from collections.abc import Callable
 from pathlib import Path
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
+from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
@@ -43,13 +46,23 @@ class LiveTree:
     reasons are collected from the events as they arrive.
     """
 
-    def __init__(self, board: Board, run_id: str, request: str):
+    def __init__(
+        self,
+        board: Board,
+        run_id: str,
+        request: str,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         self.board = board
         self.title = f'Ejecución {run_id} · "{request}"'
         self.history: dict[str, list[str]] = {name: [] for name in board.tasks}
         self.last_problem: Event | None = None  # last rejection or failure, shown in full
+        self.clock = clock
+        self.started_at: dict[str, float] = {}  # when each task started its current attempt
 
     def update(self, event: Event) -> None:
+        if event.kind == "started":
+            self.started_at[event.task] = self.clock()
         if event.kind in {"rejected", "failed"}:
             first_line = event.detail.splitlines()[0].removeprefix("- ") if event.detail else ""
             self.history[event.task].append(f"✗ intento {event.attempt}: {first_line}")
@@ -62,7 +75,14 @@ class LiveTree:
             phase, agent = PHASES.get(name, (name, ""))
             symbol, label, style = STATUS[task.status]
             attempt = f"intento {task.attempts}/{MAX_PHASE_ATTEMPTS}" if task.attempts else ""
-            node = tree.add(Text(f"{symbol} {phase:<15} {agent:<14} {label:<13} {attempt}", style))
+            row = f"{phase:<15} {agent:<14} {label:<13} {attempt}"
+            if task.status in {Status.RUNNING, Status.IN_AUDIT}:
+                # A spinner and a clock on the working task, so a long model call does not
+                # look like a frozen program. Live redraws it several times per second.
+                seconds = int(self.clock() - self.started_at.get(name, self.clock()))
+                node = tree.add(Spinner("dots", Text(f"{row} · {seconds} s", style), style=style))
+            else:
+                node = tree.add(Text(f"{symbol} {row}", style))
             for line in self.history[name]:
                 node.add(Text(line, style="red"))
         if self.last_problem is None:
