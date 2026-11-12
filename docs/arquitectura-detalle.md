@@ -510,6 +510,30 @@ El orquestador clasifica el pedido con el modelo de lenguaje y devuelve la fase 
 código valida que la fase sea una de las cuatro, muestra el efecto ("este cambio entra por PRD; se
 rehacen PRD, Spec e Implementation") y pide **confirmación** al usuario antes de gastar tokens.
 
+**Versión implementada.**
+
+- **Árbol en vivo.** La terminal es un consumidor más de los eventos de `run()`: lee el estado de
+  cada tarea del tablero y redibuja el árbol tras cada evento, con fase, agente, estado e intento.
+  Los intentos rechazados cuelgan de su tarea con la primera regla que falló, y debajo del árbol
+  se muestra completo el último rechazo o fallo. Las búsquedas, los conteos de ASK y REQ y los
+  tiempos del ejemplo quedan como mejora.
+- **Entrega.** Una tabla por fase (agente, estado, intentos), la cadena pedido → requisito →
+  pruebas → resultado cuando las cuatro fases quedaron aprobadas, y las rutas del código
+  (`workspace/<ejecución>/`) y del registro (`logs/<ejecución>.jsonl`). Las llamadas, los tokens,
+  la tabla de reglas y los comandos interactivos (`ver prd`, `traza`) quedan como mejora.
+- **Cambios.** El usuario elige la fase: `--change FASE "texto"` junto con `--run-id` de una
+  ejecución terminada. La clasificación con el modelo queda como mejora. El código marca la fase
+  como `invalidada` (no `en_curso`, como dice la tabla de la sección 6.2), invalida en cascada a
+  sus dependientes, muestra qué fases se rehacen y pide confirmación; si se rechaza, nada se
+  guarda. La fase cambiada recibe el texto del cambio añadido a su entrada, y cada tarea que vuelve
+  a la cola tras un cambio empieza una ronda nueva de intentos. El pedido original no se guarda: si
+  el cambio entra por Planning, hay que volver a pasarlo en la línea de órdenes.
+
+```
+python -m agora --run-id run-1
+python -m agora --run-id run-1 --change spec "Agrega una prueba para una categoría con acentos"
+```
+
 ## 11. Tecnologías
 
 | Pieza | Elección | Motivo |
