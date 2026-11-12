@@ -189,7 +189,9 @@ gastar tokens. La cascada rehace lo demás.
 | Juez con modelo (reglas L) | Pendiente |
 | Subir a la fase de origen cuando el defecto nace antes | Pendiente: la fase rechazada se repite a sí misma |
 | Árbol de *spans* y registro del costo | Pendiente |
+| Ejecutar el código generado como servicio, en un entorno aislado | Pendiente: hoy se genera la lógica y se prueba con pytest |
 
 Las diferencias se explican en las notas "Versión implementada" de
-[arquitectura-detalle.md](arquitectura-detalle.md), y la evidencia con modelo real está en
+[arquitectura-detalle.md](arquitectura-detalle.md). Las reglas implementadas están en
+[reglas.md](reglas.md), y la evidencia con modelo real, en
 [hallazgos-modelo-real.md](hallazgos-modelo-real.md).

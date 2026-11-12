@@ -136,11 +136,18 @@ Las pruebas usan el modelo simulado y respuestas HTTP grabadas: no llaman a ning
 - [docs/arquitectura.md](docs/arquitectura.md): arquitectura en breve, para revisión.
 - [docs/arquitectura-detalle.md](docs/arquitectura-detalle.md): diseño completo, con notas de lo que
   cambió al implementarse.
+- [docs/reglas.md](docs/reglas.md): qué recibe y entrega cada agente, y las reglas del auditor con
+  su severidad y el motivo de cada una.
 - [docs/hallazgos-modelo-real.md](docs/hallazgos-modelo-real.md): ejecuciones con modelo real,
   causas y decisiones.
 
 ## 9. Límites conocidos
 
+- El código generado contiene la lógica de lo pedido y sus pruebas, en Python sin paquetes
+  externos, pero no levanta un servicio: para una API no hay servidor HTTP. Las pruebas corren en
+  el mismo entorno que AGORA, donde no se instalan dependencias del código generado. Ejecutarlo
+  como servicio requiere un entorno aislado por ejecución (un entorno virtual o un contenedor) con
+  una lista de paquetes permitidos.
 - Las reglas que requieren comparar significados (por ejemplo, que cada pedido aparezca en la tarea
   original) necesitan un juez con modelo, que no está implementado.
 - La fase de Planning no usa todavía la búsqueda web; sus fuentes no se verifican.
