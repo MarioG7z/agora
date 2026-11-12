@@ -61,7 +61,8 @@ python -m agora
 Ejecuta las cuatro fases sobre una tarea de ejemplo (un inventario de productos). El guion del
 simulado hace que el primer PRD olvide un pedido del usuario: el auditor lo rechaza y el segundo
 intento pasa. El código generado queda en `workspace/<ejecución>/` y el registro de eventos en
-`logs/<ejecución>.jsonl`.
+`logs/<ejecución>.jsonl`. Con `--pausa 2`, el simulado espera dos segundos antes de cada respuesta,
+como un modelo real, y se ve en la terminal qué tarea está trabajando y cuánto lleva.
 
 **Con un modelo real**, con `OPENROUTER_API_KEY` y `OPENROUTER_MODEL` en `.env`:
 
