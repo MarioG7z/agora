@@ -19,6 +19,8 @@ class Agent:
                 artifact = self.schema.model_validate_json(text)
                 return artifact
             except ValidationError as error:
+                last_error = str(error)  # ← copy it while it exists
                 message = user + "\n\nYour previous answer was invalid:\n" + str(error)
-        # if we get here, the 3 attempts failed
-        raise SchemaValidationError(f"Agent {self.name} failed after 3 attempts")
+        raise SchemaValidationError(
+            f"Agent {self.name} failed after 3 attempts. Last error:\n{last_error}"
+        )
