@@ -1,7 +1,11 @@
 """User changes: a change enters through one phase and redoes it and every phase after it."""
 
-import pytest
+import io
 
+import pytest
+from rich.console import Console
+
+from agora import cli
 from agora.auditor import Auditor
 from agora.board import Status
 from agora.demo import DEMO_REQUEST, demo_models, make_agents, make_board
@@ -89,4 +93,47 @@ async def test_changed_phase_gets_its_full_attempts_again(tmp_path):
     assert "failed" not in kinds
     assert board.tasks["prd"].status == Status.APPROVED
     assert board.tasks["prd"].attempts == 2
+    store.close()
+
+
+def answering(text: str) -> Console:
+    """A console that records its output and answers every question with `text`."""
+    console = Console(file=io.StringIO(), width=120)
+    console.input = lambda prompt="": text
+    return console
+
+
+@pytest.mark.asyncio
+async def test_cli_change_confirmed_reruns_from_the_chosen_phase(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # workspace/ and logs/ are created under the test folder
+    await cli.run(DEMO_REQUEST, "run-1", resume=False, real=False, console=answering(""))
+    console = answering("s")
+
+    await cli.run(
+        DEMO_REQUEST, "run-1", resume=False, real=False, change=("spec", CHANGE), console=console
+    )
+
+    assert "El cambio entra por Spec; se rehacen: Spec, Implementation." in console.file.getvalue()
+    store = BoardStore(tmp_path / "workspace" / "agora.db")
+    saved = store.load("run-1")
+    assert all(task.status == Status.APPROVED for task in saved.tasks.values())
+    assert saved.tasks["prd"].attempts == 2  # still the attempts of the first run
+    store.close()
+    log = (tmp_path / "logs" / "run-1.jsonl").read_text(encoding="utf-8")
+    assert log.count('"kind": "finished"') == 2  # the change run appends to the same log
+
+
+@pytest.mark.asyncio
+async def test_cli_change_refused_leaves_the_run_untouched(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    await cli.run(DEMO_REQUEST, "run-1", resume=False, real=False, console=answering(""))
+    console = answering("n")
+
+    await cli.run(
+        DEMO_REQUEST, "run-1", resume=False, real=False, change=("prd", CHANGE), console=console
+    )
+
+    assert "Cambio cancelado" in console.file.getvalue()
+    store = BoardStore(tmp_path / "workspace" / "agora.db")
+    assert all(task.status == Status.APPROVED for task in store.load("run-1").tasks.values())
     store.close()

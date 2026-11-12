@@ -10,13 +10,15 @@ from rich.console import Console
 from rich.live import Live
 
 from agora.auditor import Auditor
+from agora.board import Board
 from agora.demo import DEMO_REQUEST, demo_models, make_agents, make_board
+from agora.errors import InvalidTransition
 from agora.eventlog import EventLog
 from agora.llm import ModelClient
 from agora.openrouter import OpenRouterModel
 from agora.orchestrator import Orchestrator
 from agora.store import BoardStore
-from agora.terminal import LiveTree, delivery
+from agora.terminal import LiveTree, delivery, phase_name
 from agora.workspace import Workspace
 
 
@@ -31,12 +33,42 @@ def real_models(client: httpx.AsyncClient) -> dict[str, ModelClient]:
     return {name: model for name in ["research", "prd", "spec", "implementation"]}
 
 
+def confirm_change(board: Board, phase: str, console: Console) -> bool:
+    """Invalidate the phase and its dependents in memory, then ask before spending tokens.
+
+    Nothing is saved until the run starts, so answering no leaves the stored run untouched.
+    """
+    if phase not in board.tasks:
+        raise SystemExit(f"Fase desconocida: {phase}. Usa una de: {', '.join(board.order)}")
+    try:
+        redo = board.invalidate(phase)
+    except InvalidTransition:
+        raise SystemExit(f"La fase {phase} aún no tiene resultado: reanuda con --resume") from None
+    names = ", ".join(phase_name(name) for name in redo)
+    console.print(f"El cambio entra por {phase_name(phase)}; se rehacen: {names}.")
+    return console.input("¿Continuar? [s/N] ").strip().lower() == "s"
+
+
 async def run(
-    request: str, run_id: str, resume: bool, real: bool, console: Console | None = None
+    request: str,
+    run_id: str,
+    resume: bool,
+    real: bool,
+    change: tuple[str, str] | None = None,
+    console: Console | None = None,
 ) -> None:
     console = console or Console()
     store = BoardStore(Path("workspace") / "agora.db")
-    if resume:
+    changes = {}
+    if change:
+        phase, text = change
+        board = store.load(run_id)
+        if not confirm_change(board, phase, console):
+            console.print("Cambio cancelado; la ejecución queda como estaba.")
+            store.close()
+            return
+        changes = {phase: text}
+    elif resume:
         board = store.load(run_id)
         resumed = board.resume()
         console.print(f"Reanudando {run_id}; se repiten: {', '.join(resumed) or 'ninguna'}")
@@ -51,6 +83,7 @@ async def run(
             auditor=Auditor(workspace.root),
             store=store,
             run_id=run_id,
+            changes=changes,
         )
         log = EventLog(Path("logs") / f"{run_id}.jsonl")
         tree = LiveTree(board, run_id, request)
@@ -71,5 +104,11 @@ def main() -> None:
     parser.add_argument("--run-id", default=datetime.now().strftime("run-%Y%m%d-%H%M%S"))
     parser.add_argument("--resume", action="store_true", help="Reanuda la ejecución --run-id")
     parser.add_argument("--real", action="store_true", help="Usa OpenRouter en vez del simulado")
+    parser.add_argument(
+        "--change",
+        nargs=2,
+        metavar=("FASE", "TEXTO"),
+        help="Cambio a la ejecución terminada --run-id; FASE: research, prd, spec o implementation",
+    )
     args = parser.parse_args()
-    asyncio.run(run(args.request, args.run_id, args.resume, args.real))
+    asyncio.run(run(args.request, args.run_id, args.resume, args.real, args.change))
