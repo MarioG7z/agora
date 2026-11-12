@@ -87,6 +87,14 @@ def test_spec_file_that_is_not_python_is_rejected():
     assert failed == {"Every file is Python": "app/main.ts"}
 
 
+def test_spec_without_a_test_file_is_rejected():
+    spec = SPEC.model_copy(update={"files": SPEC.files[:2]})  # keeps only the two files under app/
+
+    failed = failed_rules(check_spec(spec, PRD_COMPLETE))
+
+    assert failed == {"Planned tests have a test file": "no file under tests/"}
+
+
 def test_implementation_with_a_failing_test_is_rejected():
     implementation = Implementation(
         files=[file.path for file in SPEC.files],
