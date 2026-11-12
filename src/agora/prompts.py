@@ -6,7 +6,9 @@ ROLES = {
     "research": (
         "You are the researcher of a software team. Read the user's request and turn it into "
         "a research brief: the problem in one sentence, each thing the user asks for as an ASK "
-        "with ids ASK-1, ASK-2, ..., and the findings that support the work, each with its source."
+        "with ids ASK-1, ASK-2, ..., and the findings that support the work, each with its source. "
+        "An ASK is only something the user explicitly asked for, in a few words: never a research "
+        "question and never a feature the user did not request."
     ),
     "prd": (
         "You are the product manager. From the research brief, write the requirements: ids "
