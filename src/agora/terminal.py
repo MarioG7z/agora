@@ -1,5 +1,6 @@
 """What the user sees in the terminal: the live tree while a run works, then the delivery."""
 
+import json
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -35,8 +36,33 @@ STATUS = {
 }
 
 
+# Task name -> what its agent works on, shown while the first attempt runs.
+OBJECTIVES = {
+    "research": "extrae los pedidos del usuario",
+    "prd": "escribe requisitos con criterios de aceptación",
+    "spec": "planea interfaces, archivos y pruebas",
+    "implementation": "escribe el código y ejecuta pytest",
+}
+
+
 def phase_name(task_name: str) -> str:
     return PHASES.get(task_name, (task_name, ""))[0]
+
+
+def delivered(task_name: str, artifact: str) -> str:
+    """What an approved task delivered, counted from its artifact."""
+    data = json.loads(artifact)
+    if task_name == "research":
+        return f"{len(data['asks'])} pedidos"
+    if task_name == "prd":
+        return f"{len(data['requirements'])} requisitos"
+    if task_name == "spec":
+        return f"{len(data['files'])} archivos · {len(data['tests'])} pruebas"
+    if task_name == "implementation":
+        results = data["test_results"]
+        passed = sum(1 for result in results if result["passed"])
+        return f"{passed}/{len(results)} pruebas pasan"
+    return "entregada"
 
 
 class LiveTree:
@@ -59,6 +85,7 @@ class LiveTree:
         self.last_problem: Event | None = None  # last rejection or failure, shown in full
         self.clock = clock
         self.started_at: dict[str, float] = {}  # when each task started its current attempt
+        self.last_reason: dict[str, str] = {}  # first problem of the last rejection of each task
 
     def update(self, event: Event) -> None:
         if event.kind == "started":
@@ -66,7 +93,32 @@ class LiveTree:
         if event.kind in {"rejected", "failed"}:
             first_line = event.detail.splitlines()[0].removeprefix("- ") if event.detail else ""
             self.history[event.task].append(f"✗ intento {event.attempt}: {first_line}")
+            self.last_reason[event.task] = first_line
             self.last_problem = event
+
+    def activity(self, name: str) -> str:
+        """What the task is doing right now, in words. Every phrase comes from the board."""
+        task = self.board.tasks[name]
+        if task.status == Status.PENDING:
+            waiting = [
+                dep for dep in task.depends_on if self.board.tasks[dep].status != Status.APPROVED
+            ]
+            if waiting:
+                return "espera a " + ", ".join(phase_name(dep) for dep in waiting)
+            return "lista para empezar"
+        if task.status == Status.RUNNING:
+            if task.attempts > 1 and name in self.last_reason:
+                return "corrige: " + self.last_reason[name]
+            return OBJECTIVES.get(name, "trabajando")
+        if task.status == Status.IN_AUDIT:
+            return "el auditor revisa la entrega"
+        if task.status == Status.APPROVED and task.artifact:
+            return delivered(name, task.artifact)
+        if task.status == Status.FAILED:
+            return f"detenida tras {task.attempts} intentos"
+        if task.status == Status.INVALIDATED:
+            return "se rehará por un cambio"
+        return "espera una decisión"
 
     def render(self) -> RenderableType:
         tree = Tree(Text(self.title, style="bold"))
@@ -75,14 +127,19 @@ class LiveTree:
             phase, agent = PHASES.get(name, (name, ""))
             symbol, label, style = STATUS[task.status]
             attempt = f"intento {task.attempts}/{MAX_PHASE_ATTEMPTS}" if task.attempts else ""
-            row = f"{phase:<15} {agent:<14} {label:<13} {attempt}"
+            row = f"{phase:<15} {agent:<14} {label:<13} {attempt:<12}"
+            doing = self.activity(name)
+            if len(doing) > 50:
+                doing = doing[:49] + "…"
             if task.status in {Status.RUNNING, Status.IN_AUDIT}:
                 # A spinner and a clock on the working task, so a long model call does not
                 # look like a frozen program. Live redraws it several times per second.
                 seconds = int(self.clock() - self.started_at.get(name, self.clock()))
-                node = tree.add(Spinner("dots", Text(f"{row} · {seconds} s", style), style=style))
+                text = Text.assemble((row, style), (f"{seconds:>3} s  ", style), (doing, "italic"))
+                node = tree.add(Spinner("dots", text, style=style))
             else:
-                node = tree.add(Text(f"{symbol} {row}", style))
+                text = Text.assemble((f"{symbol} {row}", style), ("       ", ""), (doing, "italic"))
+                node = tree.add(text)
             for line in self.history[name]:
                 node.add(Text(line, style="red"))
         if self.last_problem is None:

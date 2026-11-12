@@ -49,3 +49,25 @@ def test_working_task_shows_how_long_it_has_been_waiting():
     console.print(tree.render())
 
     assert "12 s" in console.file.getvalue()
+
+
+def test_each_task_says_what_it_is_doing():
+    from agora.board import Status
+    from agora.demo import BRIEF, make_board
+    from agora.orchestrator import Event
+    from agora.terminal import LiveTree
+
+    board = make_board()
+    tree = LiveTree(board, "run-1", "tarea")
+    research, prd = board.tasks["research"], board.tasks["prd"]
+    for status in [Status.RUNNING, Status.IN_AUDIT, Status.APPROVED]:
+        research.move_to(status)
+    research.artifact = BRIEF.model_dump_json()
+    prd.move_to(Status.RUNNING)
+    prd.move_to(Status.IN_AUDIT)
+    tree.update(Event(kind="rejected", task="prd", detail="- ASK-2 sin requisito", attempt=1))
+    prd.move_to(Status.RUNNING)  # second attempt
+
+    assert tree.activity("research") == "2 pedidos"
+    assert tree.activity("prd") == "corrige: ASK-2 sin requisito"
+    assert tree.activity("spec") == "espera a PRD"
