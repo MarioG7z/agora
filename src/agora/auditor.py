@@ -98,7 +98,9 @@ def check_implementation(
         # Without the reason (an import error, a syntax error) the developer cannot fix it.
         check("pytest reports no errors", implementation.pytest_errors),
         check(
-            "Every test is named after its Spec id", implementation.unnamed_tests, blocking=False
+            "Every test is named after its Spec id (test_t1_..., test_t2_...)",
+            implementation.unnamed_tests,
+            blocking=False,
         ),
     ]
     if workspace_root is not None:
