@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -88,6 +89,7 @@ async def run(
         )
         log = EventLog(Path("logs") / f"{run_id}.jsonl")
         tree = LiveTree(board, run_id, request)
+        started = time.monotonic()
         # The terminal is one more consumer of the events. Live calls tree.render on its own
         # several times per second, so the spinner and the clock move while a model call waits.
         with Live(console=console, get_renderable=tree.render, refresh_per_second=8):
@@ -96,7 +98,7 @@ async def run(
                 tree.update(event)
     store.close()
     console.print()
-    console.print(delivery(board, workspace.root, log.path))
+    console.print(delivery(board, workspace.root, log.path, int(time.monotonic() - started)))
 
 
 def main() -> None:

@@ -150,7 +150,7 @@ class LiveTree:
         return Group(tree, Panel(event.detail, title=title, title_align="left", border_style="red"))
 
 
-def delivery(board: Board, code: Path, log: Path) -> RenderableType:
+def delivery(board: Board, code: Path, log: Path, seconds: int = 0) -> RenderableType:
     """The summary shown when the run ends: one row per phase and where everything was left."""
     phases = Table(title="Entrega", title_justify="left")
     for column in ["Fase", "Agente", "Estado", "Intentos"]:
@@ -165,6 +165,7 @@ def delivery(board: Board, code: Path, log: Path) -> RenderableType:
     if trace is not None:
         parts.append(trace)
     parts.append(Text(f"Código generado en {code}\nRegistro de eventos en {log}"))
+    parts.append(Text(f"Duración total: {seconds // 60}:{seconds % 60:02d}"))
     return Group(*parts)
 
 

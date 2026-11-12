@@ -30,6 +30,7 @@ async def test_demo_run_draws_the_tree_with_the_rejected_prd(tmp_path, monkeypat
     assert "ASK-2 Filtrar productos por categoria" in output
     assert "✓ pasa" in output
     assert "Registro de eventos en logs" in output
+    assert "Duración total: 0:" in output
 
 
 def test_working_task_shows_how_long_it_has_been_waiting():
