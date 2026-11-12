@@ -96,7 +96,7 @@ async def run(
                 tree.update(event)
     store.close()
     console.print()
-    console.print(delivery(board, workspace.root, log.path))
+    console.print(delivery(board, workspace.root, log.path, tree.elapsed()))
 
 
 def main() -> None:
