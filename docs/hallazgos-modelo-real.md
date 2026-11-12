@@ -1,7 +1,7 @@
 # Hallazgos de las corridas con modelo real
 
 **Fecha:** 2026-11-11, actualizado el 2026-11-12.
-**Alcance:** cuatro ejecuciones de AGORA con un modelo real sobre la tarea de ejemplo. Recoge qué
+**Alcance:** siete ejecuciones de AGORA con un modelo real sobre la tarea de ejemplo. Recoge qué
 falló, la causa comprobada o la hipótesis, qué se cambió y qué queda por decidir.
 
 ## 1. Condiciones
@@ -22,6 +22,9 @@ y del tablero guardado en SQLite (`workspace/agora.db`).
 | `real-2` | 41 s | Falla en Planning, con causa visible |
 | `real-3` | 423 s | Pasa Planning, PRD y Spec; falla en Implementation |
 | `real-4` | 202 s | Pasa Planning y PRD; la Spec falla tras 3 rechazos |
+| `real-5` | — | Falla en Planning: el modelo vuelve a copiar el esquema |
+| `real-6` | 85 s | Pasa Planning y PRD; la Spec falla tras 3 rechazos |
+| `real-7` | 84 s | Pasa Planning y PRD; la Spec falla tras 3 rechazos |
 
 ## 2. Error sin causa (`real-1`)
 
@@ -110,19 +113,54 @@ el usuario* con *qué conviene investigar*. Cada fase siguiente cubrió fielment
 ahí salen la caché, el monitoreo, Kubernetes y el resto. Esto confirma la hipótesis del hallazgo 5:
 el defecto nace en Planning.
 
-## 8. Decisiones
+## 8. Pedidos del usuario y forma de la respuesta (`real-5` a `real-7`)
+
+**Cambio 1.** El prompt del investigador precisa que un pedido es solo algo que el usuario pidió de
+forma explícita, nunca una pregunta de investigación ni una funcionalidad añadida.
+
+**Observado en `real-5`.** La ejecución falló en Planning porque el modelo volvió a responder con la
+estructura del esquema (`$defs`, `properties`) en lugar de llenarla. El problema del hallazgo 3 no
+estaba resuelto: seguía latente y no apareció en `real-3` ni en `real-4`.
+
+**Consecuencia de método.** El modelo varía entre llamadas, así que una sola ejecución no permite
+atribuir un efecto a un cambio. Desde aquí, cada cambio se evalúa con al menos dos ejecuciones.
+
+**Cambio 2.** El prompt ya no incluye el esquema JSON técnico, sino la forma de la respuesta, por
+ejemplo `{"asks": [{"id": "string", "description": "string"}]}`, generada a partir del contrato.
+
+**Observado en `real-6` y `real-7`.**
+
+| Aspecto | `real-6` | `real-7` |
+|---|---|---|
+| Planning y PRD | Aprobados al primer intento | Aprobados al primer intento |
+| Pedidos | 7 | 8 |
+| Pedidos que la tarea sí contiene | 2 (consultar y filtrar) | 2 (consultar y filtrar) |
+| Lenguaje de la primera Spec | TypeScript | PHP |
+| Último rechazo de la Spec | `openapi.yaml`, `ProductSchema.json` y `.xml` | `swagger.yaml` |
+
+- Ninguna de las dos copió el esquema: el cambio 2 resolvió la causa de fondo del hallazgo 3.
+- Los pedidos ya no son preguntas de investigación, pero se siguen añadiendo funcionalidades que la
+  tarea no menciona, como autenticación, paginación o XML. El cambio 1 corrigió el tipo de pedido,
+  no el alcance.
+- En las tres ejecuciones que llegaron a la Spec, el Arquitecto eligió primero un lenguaje distinto
+  de Python. La regla de archivos Python lo detectó siempre, y con el veredicto el modelo convergió a
+  Python, pero insistió en archivos de documentación (`yaml`, `json`) hasta agotar los intentos.
+
+## 9. Decisiones
 
 **Tomadas**
 
 1. El error de esquema incluye el último error de validación.
 2. El cliente de OpenRouter pide salida JSON con `response_format`.
 3. Regla C en el auditor: todos los archivos de la Spec deben ser Python (`.py`).
+4. El prompt del investigador define un pedido como algo que el usuario pidió de forma explícita.
+5. El prompt muestra la forma de la respuesta en lugar del esquema JSON técnico.
 
 **Abiertas**
 
-1. Precisar en el prompt del investigador que un pedido (`ASK`) es algo que el usuario pidió de
-   forma explícita, no una pregunta de investigación ni una funcionalidad añadida. Es la fase de
-   origen según el hallazgo 7.
+1. Una regla L (juez con modelo, sección 8.4 del diseño) que compruebe que cada pedido aparece en la
+   tarea original. Las funcionalidades añadidas no se pueden detectar con una regla en código,
+   porque requieren comparar significados.
 2. Indicar en el prompt del Arquitecto que la solución sea en Python y la más pequeña que cubra los
    requisitos. Es una instrucción que faltaba, respaldada por el hallazgo 5.
 3. Limitar en Planning el número de pedidos, o hacer que el auditor advierta cuando una petición
