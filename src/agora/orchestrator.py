@@ -1,20 +1,46 @@
+from typing import Protocol
+
 from pydantic import BaseModel
 
-from agora.agent import Agent
-from agora.board import Board, Status
+from agora.auditor import Auditor
+from agora.board import Board, Status, Task
 from agora.errors import SchemaValidationError
+from agora.store import BoardStore
+
+MAX_PHASE_ATTEMPTS = 3  # how many times the auditor may send a task back before it fails
 
 
 class Event(BaseModel):
     kind: str
     task: str
     detail: str = ""
+    attempt: int = 0
+
+
+class Expert(Protocol):
+    """Anything that turns an input into a validated artifact: an Agent or the Developer."""
+
+    async def run(self, user: str) -> BaseModel: ...
 
 
 class Orchestrator:
-    def __init__(self, board: Board, agents: dict[str, Agent]):
+    def __init__(
+        self,
+        board: Board,
+        agents: dict[str, Expert],
+        auditor: Auditor | None = None,
+        store: BoardStore | None = None,
+        run_id: str = "run",
+    ):
         self.board = board  # store both, like in Agent.__init__
         self.agents = agents
+        self.auditor = auditor  # without an auditor every artifact is approved
+        self.store = store  # without a store nothing is saved
+        self.run_id = run_id
+
+    def save(self) -> None:
+        if self.store is not None:
+            self.store.save(self.run_id, self.board)
 
     async def run(self, request: str):
         while True:
@@ -22,25 +48,70 @@ class Orchestrator:
             if not ready:
                 break  # nothing left to start: the run is over
             for task in ready:
+                if task.status == Status.INVALIDATED:
+                    task.move_to(Status.PENDING)  # back in the queue after a change
                 task.move_to(Status.RUNNING)
-                yield Event(kind="started", task=task.name)
+                self.save()
+                yield Event(kind="started", task=task.name, attempt=task.attempts)
 
                 if task.depends_on:
                     user = "\n\n".join(self.board.tasks[dep].artifact for dep in task.depends_on)
                 else:
                     user = request  # the first task receives the user's request
 
-                try:
-                    # find the agent by the task name and run it
-                    artifact = await self.agents[task.name].run(user)
-                except SchemaValidationError as error:
-                    task.move_to(Status.FAILED)
-                    yield Event(kind="failed", task=task.name, detail=str(error))
+                async for event in self.run_task(task, user):
+                    yield event
+                if task.status == Status.FAILED:
                     return  # stop the whole run
 
-                task.artifact = artifact.model_dump_json()
-                task.move_to(Status.IN_AUDIT)
-                task.move_to(Status.APPROVED)  # in B5 the auditor decides here
-                yield Event(kind="approved", task=task.name)
-
         yield Event(kind="finished", task="")
+
+    async def run_task(self, task: Task, user: str):
+        """Run one task until the auditor approves it or its attempts run out."""
+        feedback = ""
+        while True:
+            try:
+                # find the agent by the task name and run it
+                artifact = await self.agents[task.name].run(user + feedback)
+            except SchemaValidationError as error:
+                task.move_to(Status.FAILED)
+                self.save()
+                yield Event(kind="failed", task=task.name, detail=str(error), attempt=task.attempts)
+                return
+
+            task.artifact = artifact.model_dump_json()
+            task.move_to(Status.IN_AUDIT)
+            self.save()
+
+            if self.auditor is None:
+                task.move_to(Status.APPROVED)
+                self.save()
+                yield Event(kind="approved", task=task.name, attempt=task.attempts)
+                return
+
+            verdict = self.auditor.review(task.name, artifact, self.board)
+            if verdict.approved:
+                task.move_to(Status.APPROVED)
+                self.save()
+                yield Event(kind="approved", task=task.name, attempt=task.attempts)
+                return
+
+            yield Event(
+                kind="rejected", task=task.name, detail=verdict.summary(), attempt=task.attempts
+            )
+            if task.attempts >= MAX_PHASE_ATTEMPTS:
+                task.move_to(Status.FAILED)
+                self.save()
+                yield Event(
+                    kind="failed",
+                    task=task.name,
+                    detail=f"Rejected by the auditor {task.attempts} times",
+                    attempt=task.attempts,
+                )
+                return
+
+            # Same task again, now with the verdict: the agent learns what to fix.
+            task.move_to(Status.RUNNING)
+            self.save()
+            feedback = "\n\nThe auditor rejected your previous answer:\n" + verdict.summary()
+            yield Event(kind="started", task=task.name, attempt=task.attempts)

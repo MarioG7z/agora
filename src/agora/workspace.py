@@ -41,6 +41,7 @@ class Workspace:
             "-m",
             "pytest",
             "-q",
+            "-rA",  # one summary line per test: PASSED or FAILED with its id
             cwd=self.root,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
