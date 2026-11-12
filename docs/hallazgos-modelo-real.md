@@ -1,14 +1,14 @@
 # Hallazgos de las corridas con modelo real
 
 **Fecha:** 2026-11-11, actualizado el 2026-11-12.
-**Alcance:** siete ejecuciones de AGORA con un modelo real sobre la tarea de ejemplo. Recoge qué
+**Alcance:** trece ejecuciones de AGORA con dos modelos reales sobre la tarea de ejemplo. Recoge qué
 falló, la causa comprobada o la hipótesis, qué se cambió y qué queda por decidir.
 
 ## 1. Condiciones
 
 | Dato | Valor |
 |---|---|
-| Modelo | `mistralai/ministral-8b-2512`, vía OpenRouter, el mismo para los cuatro expertos |
+| Modelos | `mistralai/ministral-8b-2512` (`real-1` a `real-9`) y `qwen/qwen3-coder-30b-a3b-instruct` (`real-10` a `real-13`), vía OpenRouter, el mismo para los cuatro expertos en cada ejecución |
 | Tarea | "Una API para consultar un inventario de productos y filtrarlos por categoria" |
 | Herramientas | Sin búsqueda web: la fase de Planning todavía no usa Tavily |
 | Auditor | Solo reglas en código (reglas C, sección 8.2 del diseño) |
@@ -25,6 +25,12 @@ y del tablero guardado en SQLite (`workspace/agora.db`).
 | `real-5` | — | Falla en Planning: el modelo vuelve a copiar el esquema |
 | `real-6` | 85 s | Pasa Planning y PRD; la Spec falla tras 3 rechazos |
 | `real-7` | 84 s | Pasa Planning y PRD; la Spec falla tras 3 rechazos |
+| `real-8` | 75 s | Pasa Planning y PRD; la Spec falla tras 3 rechazos |
+| `real-9` | 161 s | Pasa hasta la Spec; Implementation falla sin resultados de pruebas |
+| `real-10` | 99 s | Pasa hasta la Spec; Implementation falla sin archivos de pruebas |
+| `real-11` | 85 s | Pasa hasta la Spec; Implementation falla sin archivos de pruebas |
+| `real-12` | 154 s | Pasa hasta la Spec; Implementation falla tras 3 rechazos |
+| `real-13` | 154 s | **Ejecución completa**, con un rechazo de la Spec y dos de Implementation |
 
 ## 2. Error sin causa (`real-1`)
 
@@ -146,7 +152,45 @@ ejemplo `{"asks": [{"id": "string", "description": "string"}]}`, generada a part
   de Python. La regla de archivos Python lo detectó siempre, y con el veredicto el modelo convergió a
   Python, pero insistió en archivos de documentación (`yaml`, `json`) hasta agotar los intentos.
 
-## 9. Decisiones
+## 9. Arquitecto en Python, evidencia de pytest y otro modelo (`real-8` a `real-13`)
+
+**Cambio 1.** El prompt del Arquitecto pide un proyecto mínimo, solo con archivos `.py`, sin
+documentación, configuración ni despliegue.
+
+**Observado.** En `real-8` la Spec siguió insistiendo en `openapi.yaml` y `product_schema.json`. En
+`real-9` pasó al primer intento por primera vez, pero Implementation no produjo ningún resultado:
+el código importaba Flask, que no está instalado, y pytest no pudo cargar las pruebas. El veredicto
+solo decía qué pruebas no se ejecutaron, sin la causa, y el Desarrollador repitió el error tres
+veces.
+
+**Cambio 2.** El `Implementation` lleva las líneas de error de pytest (`E ...`), y el auditor las
+incluye como evidencia de la regla "pytest reports no errors".
+
+**Cambio 3.** Modelo `qwen/qwen3-coder-30b-a3b-instruct`: variante sin razonamiento, con soporte
+de `response_format` y especializada en código. Según el catálogo de OpenRouter consultado el
+2026-11-12, cuesta 0.15 USD por millón de tokens de entrada (igual que Ministral) y 0.60 de salida
+(0.15 en Ministral).
+
+**Observado en `real-10` y `real-11`.** Planning produjo exactamente los 2 pedidos de la tarea
+(consultar y filtrar) y el PRD, 2 requisitos: el alcance inflado de las ejecuciones anteriores
+dependía sobre todo del modelo pequeño. Pero la Spec planeó 4 y 5 pruebas sin ningún archivo bajo
+`tests/`; el Desarrollador escribió solo los archivos listados y pytest no encontró pruebas. Ninguna
+regla lo detectó en la Spec.
+
+**Cambio 4.** Regla C nueva en la Spec: si hay pruebas planeadas, debe haber al menos un archivo
+bajo `tests/`.
+
+**Observado en `real-12` y `real-13`.**
+
+- `real-13` es la primera ejecución completa con un modelo real. La regla nueva rechazó la primera
+  Spec, el segundo intento la corrigió, e Implementation pasó al tercer intento después de que el
+  veredicto mostró `No module named 'flask'`. Al repetir pytest sobre el código generado pasan 12
+  pruebas, entre ellas las 7 planeadas en la Spec.
+- En `real-12` el Desarrollador quitó Flask tras el primer veredicto, falló por errores de tipo en el
+  segundo y volvió a Flask en el tercero. Cada reintento recibe solo el último veredicto, así que el
+  modelo puede oscilar entre errores ya corregidos.
+
+## 10. Decisiones
 
 **Tomadas**
 
@@ -155,19 +199,23 @@ ejemplo `{"asks": [{"id": "string", "description": "string"}]}`, generada a part
 3. Regla C en el auditor: todos los archivos de la Spec deben ser Python (`.py`).
 4. El prompt del investigador define un pedido como algo que el usuario pidió de forma explícita.
 5. El prompt muestra la forma de la respuesta en lugar del esquema JSON técnico.
+6. El prompt del Arquitecto pide un proyecto mínimo, solo en Python.
+7. El veredicto de Implementation incluye las líneas de error de pytest.
+8. Regla C: la Spec con pruebas planeadas debe tener un archivo bajo `tests/`.
 
 **Abiertas**
 
 1. Una regla L (juez con modelo, sección 8.4 del diseño) que compruebe que cada pedido aparece en la
    tarea original. Las funcionalidades añadidas no se pueden detectar con una regla en código,
    porque requieren comparar significados.
-2. Indicar en el prompt del Arquitecto que la solución sea en Python y la más pequeña que cubra los
-   requisitos. Es una instrucción que faltaba, respaldada por el hallazgo 5.
-3. Limitar en Planning el número de pedidos, o hacer que el auditor advierta cuando una petición
+2. Limitar en Planning el número de pedidos, o hacer que el auditor advierta cuando una petición
    corta produce muchos pedidos.
-4. Registrar cada llamada al modelo como evento, con sus tokens y costo, para medir el costo de una
+3. Registrar cada llamada al modelo como evento, con sus tokens y costo, para medir el costo de una
    ejecución (criterio de B8).
-5. Probar un modelo más capaz para la fase de Implementation, que es la que escribe más texto.
+4. Pasar al reintento el historial de veredictos de la tarea, no solo el último, para evitar que
+   el modelo oscile entre errores ya corregidos (`real-12`).
+5. Elegir el modelo por fase: con la evidencia de este documento, `qwen3-coder` mantiene el alcance
+   y escribe código que pasa; `ministral-8b` infla el alcance desde Planning.
 
 Los cambios abiertos se aplican de uno en uno, con una ejecución después de cada uno, para atribuir
 cada efecto a su causa.
