@@ -6,32 +6,18 @@ from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
+from rich.console import Console
+from rich.live import Live
 
 from agora.auditor import Auditor
 from agora.demo import DEMO_REQUEST, demo_models, make_agents, make_board
 from agora.eventlog import EventLog
 from agora.llm import ModelClient
 from agora.openrouter import OpenRouterModel
-from agora.orchestrator import Event, Orchestrator
+from agora.orchestrator import Orchestrator
 from agora.store import BoardStore
+from agora.terminal import LiveTree
 from agora.workspace import Workspace
-
-LABELS = {
-    "started": "▶ inicia",
-    "approved": "✔ aprobada",
-    "rejected": "✘ rechazada",
-    "failed": "■ fallida",
-    "finished": "● ejecución terminada",
-}
-
-
-def show(event: Event) -> None:
-    label = LABELS.get(event.kind, event.kind)
-    attempt = f" (intento {event.attempt})" if event.attempt else ""
-    print(f"{label} {event.task}{attempt}")
-    if event.detail:
-        for line in event.detail.splitlines():
-            print(f"    {line}")
 
 
 def real_models(client: httpx.AsyncClient) -> dict[str, ModelClient]:
@@ -45,12 +31,15 @@ def real_models(client: httpx.AsyncClient) -> dict[str, ModelClient]:
     return {name: model for name in ["research", "prd", "spec", "implementation"]}
 
 
-async def run(request: str, run_id: str, resume: bool, real: bool) -> None:
+async def run(
+    request: str, run_id: str, resume: bool, real: bool, console: Console | None = None
+) -> None:
+    console = console or Console()
     store = BoardStore(Path("workspace") / "agora.db")
     if resume:
         board = store.load(run_id)
         resumed = board.resume()
-        print(f"Reanudando {run_id}; se repiten: {', '.join(resumed) or 'ninguna'}")
+        console.print(f"Reanudando {run_id}; se repiten: {', '.join(resumed) or 'ninguna'}")
     else:
         board = make_board()
     workspace = Workspace(Path("workspace") / run_id)
@@ -64,12 +53,16 @@ async def run(request: str, run_id: str, resume: bool, real: bool) -> None:
             run_id=run_id,
         )
         log = EventLog(Path("logs") / f"{run_id}.jsonl")
-        async for event in orchestrator.run(request):
-            log.write(run_id, event)
-            show(event)
+        tree = LiveTree(board, run_id, request)
+        # The terminal is one more consumer of the events: it redraws the tree after each one.
+        with Live(tree.render(), console=console, refresh_per_second=8) as live:
+            async for event in orchestrator.run(request):
+                log.write(run_id, event)
+                tree.update(event)
+                live.update(tree.render())
     store.close()
-    print(f"\nCódigo generado en {workspace.root}")
-    print(f"Registro de eventos en {log.path}")
+    console.print(f"\nCódigo generado en {workspace.root}")
+    console.print(f"Registro de eventos en {log.path}")
 
 
 def main() -> None:
