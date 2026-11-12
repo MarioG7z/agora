@@ -48,3 +48,15 @@ async def test_developer_reports_a_failing_test_with_its_traceback(tmp_path):
     failed = [result for result in implementation.test_results if not result.passed]
     assert [result.test_id for result in failed] == ["T-2"]
     assert "assert" in failed[0].output
+
+
+@pytest.mark.asyncio
+async def test_developer_reports_why_pytest_could_not_run(tmp_path):
+    broken = CODE.model_copy(deep=True)
+    broken.files[1].content = "import flask\n" + broken.files[1].content
+    agent = Agent("implementation", FakeModel([broken.model_dump_json()]), "You code.", CodeDraft)
+
+    implementation = await Developer(agent, Workspace(tmp_path)).run("the spec")
+
+    assert implementation.test_results == []
+    assert any("No module named 'flask'" in line for line in implementation.pytest_errors)

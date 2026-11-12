@@ -70,3 +70,4 @@ class CodeDraft(BaseModel):
 class Implementation(BaseModel):
     files: list[str]
     test_results: list[ExecutedTest]
+    pytest_errors: list[str] = []  # error lines when pytest could not even run the tests

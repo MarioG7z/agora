@@ -26,6 +26,15 @@ def parse_results(output: str) -> list[ExecutedTest]:
     return results
 
 
+def error_lines(output: str) -> list[str]:
+    """The distinct `E ...` lines of pytest, e.g. "E   ModuleNotFoundError: No module named 'x'"."""
+    lines = []
+    for line in output.splitlines():
+        if line.startswith("E ") and line.strip() not in lines:
+            lines.append(line.strip())
+    return lines[:5]
+
+
 class Developer:
     """The Implementation expert: the model writes the code, the code measures it."""
 
@@ -41,5 +50,7 @@ class Developer:
             self.workspace.write_file(file.path, file.content)
         run = await self.workspace.run_pytest()
         return Implementation(
-            files=[file.path for file in draft.files], test_results=parse_results(run.output)
+            files=[file.path for file in draft.files],
+            test_results=parse_results(run.output),
+            pytest_errors=error_lines(run.output),
         )

@@ -92,6 +92,8 @@ def check_implementation(
         check("Every file in the Spec was written", missing_files),
         check("Every test in the Spec was run", missing_tests),
         check("Every test passes", failed_tests),
+        # Without the reason (an import error, a syntax error) the developer cannot fix it.
+        check("pytest reports no errors", implementation.pytest_errors),
     ]
     if workspace_root is not None:
         forbidden = []

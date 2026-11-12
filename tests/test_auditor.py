@@ -127,3 +127,16 @@ def test_auditor_reviews_an_artifact_against_its_dependency():
 
     assert not verdict.approved
     assert "ASK-2" in verdict.summary()
+
+
+def test_implementation_that_cannot_run_carries_the_pytest_error():
+    implementation = Implementation(
+        files=[file.path for file in SPEC.files],
+        test_results=[],
+        pytest_errors=["E   ModuleNotFoundError: No module named 'flask'"],
+    )
+
+    failed = failed_rules(check_implementation(implementation, SPEC, None))
+
+    assert failed["Every test in the Spec was run"] == "T-1, T-2"
+    assert "flask" in failed["pytest reports no errors"]
