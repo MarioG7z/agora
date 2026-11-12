@@ -46,7 +46,7 @@ def confirm_change(board: Board, phase: str, console: Console) -> bool:
         raise SystemExit(f"La fase {phase} aún no tiene resultado: reanuda con --resume") from None
     names = ", ".join(phase_name(name) for name in redo)
     console.print(f"El cambio entra por {phase_name(phase)}; se rehacen: {names}.")
-    return console.input("¿Continuar? [s/N] ").strip().lower() == "s"
+    return console.input("¿Continuar? (s/N) ").strip().lower() == "s"
 
 
 async def run(
