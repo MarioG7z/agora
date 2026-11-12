@@ -99,9 +99,15 @@ class Board:
         return invalidated
 
     def resume(self) -> list[str]:
-        """After a crash, a task left RUNNING may not have finished: send it back to PENDING."""
+        """After a crash, a task left RUNNING may not have finished: send it back to PENDING.
+
+        A task left IN_AUDIT is treated the same way: running its agent again is simpler than
+        keeping a half-done audit, and costs one model call.
+        """
         resumed = []
         for task in self.tasks.values():
+            if task.status == Status.IN_AUDIT:
+                task.move_to(Status.RUNNING)
             if task.status == Status.RUNNING:
                 task.move_to(Status.PENDING)
                 resumed.append(task.name)

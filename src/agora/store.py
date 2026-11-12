@@ -28,6 +28,7 @@ class BoardStore:
     """Saves and loads a board in SQLite, so a run can resume after a crash."""
 
     def __init__(self, path: str | Path):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(path)
         self.conn.executescript(SCHEMA)
 
