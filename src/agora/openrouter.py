@@ -33,6 +33,7 @@ class OpenRouterModel:
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},
                     ],
+                    "response_format": {"type": "json_object"},
                 },
             )
         except httpx.TransportError as error:
