@@ -12,7 +12,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
-from agora.board import ALLOWED_TRANSITIONS, Board, Status
+from agora.board import Board, Status
 from agora.contracts import PRD, Implementation, ResearchBrief, Spec
 from agora.orchestrator import MAX_PHASE_ATTEMPTS, Event
 
@@ -84,7 +84,6 @@ class LiveTree:
         self.history: dict[str, list[str]] = {name: [] for name in board.tasks}
         self.last_problem: Event | None = None  # last rejection or failure, shown in full
         self.clock = clock
-        self.run_started = clock()
         self.started_at: dict[str, float] = {}  # when each task started its current attempt
         self.last_reason: dict[str, str] = {}  # first problem of the last rejection of each task
 
@@ -121,11 +120,8 @@ class LiveTree:
             return "se rehará por un cambio"
         return "espera una decisión"
 
-    def elapsed(self) -> int:
-        return int(self.clock() - self.run_started)
-
     def render(self) -> RenderableType:
-        tree = Tree(Text(f"{self.title} · {duration(self.elapsed())}", style="bold"))
+        tree = Tree(Text(self.title, style="bold"))
         for name in self.board.order:
             task = self.board.tasks[name]
             phase, agent = PHASES.get(name, (name, ""))
@@ -146,49 +142,25 @@ class LiveTree:
                 node = tree.add(text)
             for line in self.history[name]:
                 node.add(Text(line, style="red"))
-        parts: list[RenderableType] = [tree, board_table(self.board)]
-        if self.last_problem is not None:
-            event = self.last_problem
-            what = "Último rechazo del auditor" if event.kind == "rejected" else "Fallo"
-            title = f"{what} · {phase_name(event.task)}, intento {event.attempt}"
-            parts.append(Panel(event.detail, title=title, title_align="left", border_style="red"))
-        return Group(*parts)
+        if self.last_problem is None:
+            return tree
+        event = self.last_problem
+        what = "Último rechazo del auditor" if event.kind == "rejected" else "Fallo"
+        title = f"{what} · {phase_name(event.task)}, intento {event.attempt}"
+        return Group(tree, Panel(event.detail, title=title, title_align="left", border_style="red"))
 
 
-def duration(seconds: int) -> str:
-    return f"{seconds // 60}:{seconds % 60:02d}"
-
-
-def board_table(board: Board) -> Table:
-    """The board as the code holds it: state, dependencies and the moves its state machine allows.
-
-    The last column is read from ALLOWED_TRANSITIONS, so it shows the state machine at work.
-    """
-    table = Table(title="Tablero", title_justify="left")
-    for column in ["Tarea", "Depende de", "Estado", "Intentos", "Puede pasar a"]:
-        table.add_column(column)
+def delivery(board: Board, code: Path, log: Path) -> RenderableType:
+    """The summary shown when the run ends: one row per phase and where everything was left."""
+    phases = Table(title="Entrega", title_justify="left")
+    for column in ["Fase", "Agente", "Estado", "Intentos"]:
+        phases.add_column(column)
     for name in board.order:
         task = board.tasks[name]
-        style = STATUS[task.status][2]
-        allowed = ", ".join(sorted(ALLOWED_TRANSITIONS[task.status]))
-        table.add_row(
-            name,
-            ", ".join(task.depends_on) or "—",
-            Text(task.status, style),
-            str(task.attempts),
-            Text(allowed, "dim"),
-        )
-    return table
-
-
-def delivery(board: Board, code: Path, log: Path, seconds: int) -> RenderableType:
-    """The summary shown when the run ends: duration, traceability and where everything was left.
-
-    The final board is not repeated here: the last frame of the live view already shows it.
-    """
-    parts: list[RenderableType] = [
-        Text(f"Entrega · duración total {duration(seconds)}", style="bold"),
-    ]
+        phase, agent = PHASES.get(name, (name, ""))
+        symbol, label, style = STATUS[task.status]
+        phases.add_row(phase, agent, Text(f"{symbol} {label}", style), str(task.attempts))
+    parts: list[RenderableType] = [phases]
     trace = traceability(board)
     if trace is not None:
         parts.append(trace)
