@@ -98,6 +98,14 @@ class Board:
                     invalidated.append(task.name)
         return invalidated
 
+    def invalidate(self, name: str) -> list[str]:
+        """A user change enters through `name`: that task and every task after it are redone.
+
+        Returns the names of the tasks that will be redone, starting with `name`.
+        """
+        self.tasks[name].move_to(Status.INVALIDATED)
+        return [name, *self.invalidate_dependents(name)]
+
     def resume(self) -> list[str]:
         """After a crash, a task left RUNNING may not have finished: send it back to PENDING.
 

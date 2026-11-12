@@ -31,12 +31,14 @@ class Orchestrator:
         auditor: Auditor | None = None,
         store: BoardStore | None = None,
         run_id: str = "run",
+        changes: dict[str, str] | None = None,
     ):
         self.board = board  # store both, like in Agent.__init__
         self.agents = agents
         self.auditor = auditor  # without an auditor every artifact is approved
         self.store = store  # without a store nothing is saved
         self.run_id = run_id
+        self.changes = changes or {}  # task -> change asked by the user, added to its input
 
     def save(self) -> None:
         if self.store is not None:
@@ -50,6 +52,7 @@ class Orchestrator:
             for task in ready:
                 if task.status == Status.INVALIDATED:
                     task.move_to(Status.PENDING)  # back in the queue after a change
+                    task.attempts = 0  # a change opens a new round of attempts
                 task.move_to(Status.RUNNING)
                 self.save()
                 yield Event(kind="started", task=task.name, attempt=task.attempts)
@@ -58,6 +61,8 @@ class Orchestrator:
                     user = "\n\n".join(self.board.tasks[dep].artifact for dep in task.depends_on)
                 else:
                     user = request  # the first task receives the user's request
+                if task.name in self.changes:
+                    user += "\n\nChange requested by the user:\n" + self.changes[task.name]
 
                 async for event in self.run_task(task, user):
                     yield event
