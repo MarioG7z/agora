@@ -1,7 +1,7 @@
 # Hallazgos de las corridas con modelo real
 
-**Fecha:** 2026-11-11.
-**Alcance:** tres ejecuciones de AGORA con un modelo real sobre la tarea de ejemplo. Recoge qué
+**Fecha:** 2026-11-11, actualizado el 2026-11-12.
+**Alcance:** cuatro ejecuciones de AGORA con un modelo real sobre la tarea de ejemplo. Recoge qué
 falló, la causa comprobada o la hipótesis, qué se cambió y qué queda por decidir.
 
 ## 1. Condiciones
@@ -21,6 +21,7 @@ y del tablero guardado en SQLite (`workspace/agora.db`).
 | `real-1` | 32 s | Falla en Planning, sin causa visible |
 | `real-2` | 41 s | Falla en Planning, con causa visible |
 | `real-3` | 423 s | Pasa Planning, PRD y Spec; falla en Implementation |
+| `real-4` | 202 s | Pasa Planning y PRD; la Spec falla tras 3 rechazos |
 
 ## 2. Error sin causa (`real-1`)
 
@@ -86,17 +87,42 @@ asegura un mínimo de 7, una por cada intento de fase.
 
 **Causa comprobada.** El agente no tiene acceso al flujo de eventos; solo el orquestador emite.
 
-## 7. Decisiones
+## 7. La regla de archivos Python (`real-4`)
+
+**Cambio.** Regla C nueva en el auditor: todos los archivos de la Spec deben terminar en `.py`
+(decisión abierta 1 de la versión anterior de este documento).
+
+**Observado.** La falla se adelantó de Implementation a la Spec, que es donde se rechaza y donde
+cuesta menos: la Implementation ya no se ejecutó.
+
+| Intento de Spec | Archivos | Extensiones | Motivo del rechazo |
+|---|---|---|---|
+| 1 | 33 | `js`, `yaml`, `yml` | 33 archivos que no son Python |
+| 2 | 22 | `py`, `yaml`, `yml` | Solo quedan los de Docker y Kubernetes |
+| 3 | 33 | `py`, `yaml`, `yml` | Además, 27 nombres de servicios en `covers` que no son requisitos |
+
+El modelo corrigió casi todo con el veredicto del primer rechazo, pero el alcance siguió inflado.
+
+**Causa, ahora con evidencia.** Los 7 pedidos de Planning no son pedidos del usuario sino preguntas
+de investigación, por ejemplo "¿Cuáles son los estándares y buenas prácticas para el diseño…?" o
+"¿Qué herramientas de monitoreo y métricas son esenciales…?". El investigador confundió *qué pidió
+el usuario* con *qué conviene investigar*. Cada fase siguiente cubrió fielmente esas preguntas: de
+ahí salen la caché, el monitoreo, Kubernetes y el resto. Esto confirma la hipótesis del hallazgo 5:
+el defecto nace en Planning.
+
+## 8. Decisiones
 
 **Tomadas**
 
 1. El error de esquema incluye el último error de validación.
 2. El cliente de OpenRouter pide salida JSON con `response_format`.
+3. Regla C en el auditor: todos los archivos de la Spec deben ser Python (`.py`).
 
 **Abiertas**
 
-1. Regla C en el auditor: los archivos de código de la Spec deben ser Python (`.py`). Protege en
-   código lo que hoy depende del modelo.
+1. Precisar en el prompt del investigador que un pedido (`ASK`) es algo que el usuario pidió de
+   forma explícita, no una pregunta de investigación ni una funcionalidad añadida. Es la fase de
+   origen según el hallazgo 7.
 2. Indicar en el prompt del Arquitecto que la solución sea en Python y la más pequeña que cubra los
    requisitos. Es una instrucción que faltaba, respaldada por el hallazgo 5.
 3. Limitar en Planning el número de pedidos, o hacer que el auditor advierta cuando una petición
