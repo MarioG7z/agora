@@ -94,3 +94,13 @@ def test_resume_sends_running_tasks_back_to_pending():
     assert resumed == ["prd"]
     assert board.tasks["prd"].status == Status.PENDING
     assert board.tasks["research"].status == Status.APPROVED
+
+
+def test_resume_also_repeats_a_task_left_in_audit():
+    board = make_chain()
+    task = board.tasks["research"]
+    task.move_to(Status.RUNNING)
+    task.move_to(Status.IN_AUDIT)  # the process dies during the audit
+
+    assert board.resume() == ["research"]
+    assert task.status == Status.PENDING

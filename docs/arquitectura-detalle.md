@@ -123,6 +123,12 @@ Un **artefacto** es lo que entrega una fase: un documento estructurado que consu
 | Spec | Arquitecto | `PRD` | `Spec`: cómo se construye, con modelos de datos, interfaces, archivos y plan de pruebas | Desarrollador y auditor |
 | Implementation | Desarrollador | `Spec` | `Implementation`: archivos escritos y resultado de cada prueba | Auditor y usuario |
 
+El Desarrollador es el único experto que no entrega su artefacto directamente. El modelo escribe
+el código (`CodeDraft`: cada archivo con su contenido); el sistema lo escribe en la carpeta de
+trabajo, ejecuta pytest y arma el `Implementation` con los resultados **medidos**. Un modelo no
+puede reportar si sus propias pruebas pasan: eso lo mide el código. Cada función de prueba lleva
+el id de su prueba planeada (`test_t2_...` para `T-2`), y así se enlaza cada resultado con la Spec.
+
 Las fases se ejecutan en orden, y el auditor revisa la salida de cada una antes de que avance:
 
 ```mermaid
@@ -260,8 +266,9 @@ misma transacción** de la base de datos: nunca existe una tarea aprobada sin su
 
 La base de datos es SQLite, con dos tablas: `tasks` guarda el estado actual de cada tarea de una
 ejecución, y `artifact_versions` añade una fila cada vez que un artefacto cambia, sin borrar las
-anteriores. Una tarea que quedó `en_auditoría` conserva su artefacto, así que al reanudar basta con
-volver a auditarlo.
+anteriores. Una tarea que quedó `en_auditoría` se trata igual que una `en_curso`: vuelve a
+`pendiente` y su agente se ejecuta otra vez. Cuesta una llamada, pero evita guardar auditorías a
+medias.
 
 ## 7. Fallos y re-ejecución
 
@@ -306,6 +313,10 @@ que se repite es la implementación, que corrige el código con la información 
 
 El auditor propone la fase de origen en su veredicto. El código valida que sea una transición
 permitida y aplica los límites de intentos.
+
+**Versión implementada.** Una falla bloqueante repite **la misma fase**, con el veredicto añadido a
+su entrada, hasta 3 intentos por fase; agotados, la tarea pasa a `fallida` y la ejecución se
+detiene. Subir a la fase anterior cuando el defecto nace antes queda como mejora (sección 13).
 
 ## 8. El auditor y las reglas de validación
 
@@ -353,12 +364,21 @@ sin_cubrir = ids_prd − ids_cubiertos      # requisitos que nada cubre
 colgantes  = ids_cubiertos − ids_prd      # referencias a requisitos inexistentes
 ```
 
+**Versión implementada.** Están todas las reglas C salvo la de fuentes recuperadas, que necesita
+conectar la búsqueda con Tavily a la fase de Planning. Los módulos prohibidos se detectan buscando
+su nombre en el texto de cada archivo, una comprobación deliberadamente simple. Las reglas L llegan
+con el juez (B8).
+
 ### 8.3 Veredicto
 
 Cada regla produce un resultado estructurado: regla, si pasó, severidad, evidencia y fase de
 origen. La severidad es `bloqueante` o `advertencia`; solo las bloqueantes disparan una
-re-ejecución, y las advertencias van al reporte. Los detalles del formato se fijan al escribir el
-auditor.
+re-ejecución, y las advertencias van al reporte.
+
+En el código, cada regla produce un `RuleResult` (regla, si pasó, evidencia y si es bloqueante). La
+evidencia son los ids concretos que fallaron, por ejemplo `ASK-2`. El `Verdict` de un artefacto
+aprueba cuando todas sus reglas bloqueantes pasan, y su resumen es lo que recibe el agente en el
+siguiente intento.
 
 ### 8.4 El juez con modelo
 
@@ -409,6 +429,12 @@ orquestador / agentes / auditor
                       ──► terminal en vivo
                       ──► hooks
 ```
+
+**Versión implementada.** El bus es el propio generador del orquestador: quien consume `run()`
+reparte cada evento. La terminal lo muestra y `EventLog` lo escribe en `logs/<ejecución>.jsonl`,
+con hora, ejecución, tipo, tarea, intento y detalle. El tablero se guarda en SQLite desde el
+orquestador tras cada transición. Una clase de bus aparte, la traza en spans y los hooks quedan
+como mejora, porque con un solo consumidor activo no hacían falta todavía.
 
 Un **hook** es un suscriptor más. Hay dos clases: los que **observan** (registran o avisan) y los
 que **intervienen**, que pueden bloquear un paso; por ejemplo, impedir que el Desarrollador escriba
@@ -535,6 +561,9 @@ del MVP en un contenedor de Docker y una interfaz web simple.
 ## 13. Fuera de alcance y mejoras futuras
 
 - Cambios a mitad de ejecución, con cancelación de las tareas en curso.
+- Subir a la fase de origen cuando el auditor detecta que el defecto nace en una fase anterior.
+- Una clase de bus de eventos, la traza en spans y los hooks que intervienen (sección 9.2).
+- La regla de fuentes recuperadas, conectando la búsqueda con Tavily a la fase de Planning.
 - Exportar la traza a OpenTelemetry o a Langfuse.
 - *Mutation testing* para medir la calidad de las pruebas generadas.
 - Calibrar al juez con un conjunto de pruebas buenas y malas etiquetadas a mano, y medir su acierto

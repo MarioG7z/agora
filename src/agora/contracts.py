@@ -56,6 +56,18 @@ class ExecutedTest(BaseModel):
     output: str
 
 
+class CodeFile(BaseModel):
+    path: str
+    content: str
+
+
+class CodeDraft(BaseModel):
+    # What the developer model writes. The Implementation is built by code from it,
+    # because test results must be measured, not reported by the model.
+    files: list[CodeFile]
+
+
 class Implementation(BaseModel):
     files: list[str]
     test_results: list[ExecutedTest]
+    pytest_errors: list[str] = []  # error lines when pytest could not even run the tests
