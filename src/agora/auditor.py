@@ -70,12 +70,14 @@ def check_spec(spec: Spec, prd: PRD) -> list[RuleResult]:
     by_test = {req for test in spec.tests for req in test.covers}
     paths = [file.path for file in spec.files]
     unsafe = [path for path in paths if path.startswith(("/", "\\")) or ".." in path]
+    not_python = [path for path in paths if not path.endswith(".py")]
     return [
         check("Every REQ is covered by an interface", reqs - by_interface),
         check("Every REQ is covered by a test", reqs - by_test),
         check("Every covered id exists in the PRD", (by_interface | by_test) - reqs),
         check("File paths stay inside the workspace", unsafe),
         check("File paths are unique", duplicates(paths)),
+        check("Every file is Python", not_python),
     ]
 
 
