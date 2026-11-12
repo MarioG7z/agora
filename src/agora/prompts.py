@@ -28,10 +28,30 @@ ROLES = {
 }
 
 
+def shape(schema: type[BaseModel]) -> dict:
+    """The shape of an answer, e.g. {"asks": [{"id": "string"}]}, without JSON Schema keywords.
+
+    Small models sometimes copy a JSON Schema ($defs, properties, type) instead of filling it;
+    a plain shape is easier to follow.
+    """
+    json_schema = schema.model_json_schema()
+    definitions = json_schema.get("$defs", {})
+
+    def walk(node: dict):
+        if "$ref" in node:  # "#/$defs/Ask" -> the definition of Ask
+            return walk(definitions[node["$ref"].split("/")[-1]])
+        if node.get("type") == "object":
+            return {name: walk(field) for name, field in node["properties"].items()}
+        if node.get("type") == "array":
+            return [walk(node["items"])]
+        return node.get("type", "value")  # "string", "boolean", "integer"
+
+    return walk(json_schema)
+
+
 def system_prompt(role: str, schema: type[BaseModel]) -> str:
-    schema_text = json.dumps(schema.model_json_schema())
     return (
         f"{ROLES[role]}\n\n"
-        f"Answer only with one JSON object that follows this JSON schema, without markdown:\n"
-        f"{schema_text}"
+        f"Answer only with one JSON object with this shape, filled with your content, "
+        f"without markdown:\n{json.dumps(shape(schema))}"
     )
