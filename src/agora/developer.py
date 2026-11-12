@@ -57,9 +57,13 @@ class Developer:
     def __init__(self, agent: Agent, workspace: Workspace):
         self.agent = agent
         self.workspace = workspace
+        self.last_draft: CodeDraft | None = None  # the code of the previous attempt, if any
 
     async def run(self, user: str) -> Implementation:
+        if self.last_draft is not None:
+            user = user + "\n\nYour previous code was:\n" + self.last_draft.model_dump_json()
         draft = await self.agent.run(user)
+        self.last_draft = draft
         assert isinstance(draft, CodeDraft)
         self.workspace.write_file("pytest.ini", PYTEST_INI)
         for file in draft.files:

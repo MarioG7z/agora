@@ -60,3 +60,17 @@ async def test_developer_reports_why_pytest_could_not_run(tmp_path):
 
     assert implementation.test_results == []
     assert any("No module named 'flask'" in line for line in implementation.pytest_errors)
+
+
+@pytest.mark.asyncio
+async def test_second_attempt_sees_the_code_of_the_first(tmp_path):
+    model = FakeModel([CODE.model_dump_json(), CODE.model_dump_json()])
+    agent = Agent("implementation", model, "You code.", CodeDraft)
+    developer = Developer(agent, Workspace(tmp_path))
+
+    await developer.run("the spec")  # attempt 1: there is no previous code yet
+    await developer.run("the spec")  # attempt 2: the same developer, a second time
+
+    assert "Your previous code was" not in model.received[0]
+    assert "Your previous code was" in model.received[1]
+    assert "def list_products" in model.received[1]  # a line from the code of attempt 1
