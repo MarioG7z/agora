@@ -17,6 +17,21 @@ pip install -e ".[dev]"
 copy .env.example .env
 ```
 
+## Ejecución con el modelo simulado
+
+```powershell
+python -m agora
+```
+
+Ejecuta las cuatro fases sobre una tarea de ejemplo (un inventario de productos) sin gastar
+tokens. El primer PRD olvida un pedido del usuario, el auditor lo rechaza y el segundo intento
+pasa. El código generado queda en `workspace/<ejecución>/` y el registro de eventos en
+`logs/<ejecución>.jsonl`. Para reanudar una ejecución interrumpida:
+
+```powershell
+python -m agora --run-id <ejecución> --resume
+```
+
 ## Verificación
 
 ```powershell
