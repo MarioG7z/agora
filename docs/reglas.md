@@ -106,7 +106,8 @@ archivos en la carpeta de trabajo, ejecuta pytest y arma el `Implementation` con
 ## 6. Límites conocidos de las reglas
 
 - Las reglas en código garantizan **cobertura**, no calidad: una prueba puede existir, cubrir su
-  requisito y pasar sin comprobar nada útil.
+  requisito y pasar sin comprobar nada útil. En `real-21` un pedido quedó cubierto a medias y el
+  auditor lo aprobó (hallazgo 12).
 - No hay reglas que comparen significados, como que cada pedido aparezca en la petición original.
   Requieren un juez con modelo (sección 8.4 del diseño), que no está implementado.
 - La regla de fuentes recuperadas en Planning no está implementada, porque la búsqueda web todavía
