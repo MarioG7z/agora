@@ -77,38 +77,48 @@ python -m agora
 
 Ejecuta las cuatro fases sobre una tarea de ejemplo (un inventario de productos). El guion del
 simulado hace que el primer PRD olvide un pedido del usuario: el auditor lo rechaza y el segundo
-intento pasa. El código generado queda en `workspace/<ejecución>/` y el registro de eventos en
-`logs/<ejecución>.jsonl`. Con `--pausa 2`, el simulado espera dos segundos antes de cada respuesta,
-como un modelo real, y se ve en la terminal qué tarea está trabajando y cuánto lleva.
+intento pasa. Con `--pausa 2`, el simulado espera dos segundos antes de cada respuesta, como un
+modelo real, y se ve en la terminal qué tarea está trabajando y cuánto lleva.
 
-**Con un modelo real**, con `OPENROUTER_API_KEY` y `OPENROUTER_MODEL` en `.env`:
+**Con un modelo real**, con `OPENROUTER_API_KEY` y `OPENROUTER_MODEL` en `.env`. Tres peticiones
+de ejemplo, de menor a mayor dificultad, escritas sin acentos para evitar problemas de codificación
+en la terminal de Windows:
+
+Básica:
 
 ```powershell
 python -m agora --real "Una API para consultar un inventario de productos y filtrarlos por categoria"
 ```
 
-Peticiones de ejemplo, de menor a mayor dificultad:
+Intermedia:
 
-| Nivel | Petición | Qué pone a prueba | Ejecutada con modelo real |
-|---|---|---|---|
-| Básico | `"Una API para consultar un inventario de productos y filtrarlos por categoria"` | Dos pedidos y una sola función de consulta | Sí, `real-1` a `real-19` (sección 5) |
-| Intermedio | `"Un sistema de prestamos para una biblioteca: prestar y devolver libros, impedir prestar un libro que ya esta prestado y listar los prestamos vencidos"` | Estado que cambia (prestado o devuelto), una regla de negocio y fechas, que las pruebas deben fijar para ser repetibles | Sí, `real-20`: completa, cada fase al primer intento |
-| Difícil | `"Un sistema de reservas de salas de juntas: reservar una sala en un horario, rechazar reservas que se traslapen, cancelar reservas y consultar que salas estan libres en un horario"` | Cuatro pedidos que enlazar en la trazabilidad y traslape de intervalos con casos límite, como dos reservas contiguas | Sí, `real-21`: completa, con un rechazo de la Spec; un pedido quedó cubierto a medias (sección 5) |
+```powershell
+python -m agora --real "Un sistema de prestamos para una biblioteca: prestar y devolver libros, impedir prestar un libro que ya esta prestado y listar los prestamos vencidos"
+```
 
-Las peticiones se escriben sin acentos para evitar problemas de codificación en la terminal de
-Windows.
+Difícil:
+
+```powershell
+python -m agora --real "Un sistema de reservas de salas de juntas: reservar una sala en un horario, rechazar reservas que se traslapen, cancelar reservas y consultar que salas estan libres en un horario"
+```
+
+| Petición | Qué pone a prueba | Ejecutada con modelo real |
+|---|---|---|
+| Básica | Dos pedidos y una sola función de consulta | Sí, `real-1` a `real-19` (sección 5) |
+| Intermedia | Estado que cambia (prestado o devuelto), una regla de negocio y fechas, que las pruebas deben fijar para ser repetibles | Sí, `real-20`: completa, cada fase al primer intento |
+| Difícil | Cuatro pedidos que enlazar en la trazabilidad y traslape de intervalos con casos límite, como dos reservas contiguas | Sí, `real-21`: completa, con un rechazo de la Spec; un pedido quedó cubierto a medias (sección 5) |
 
 **Reanudar** una ejecución interrumpida, sin repetir lo aprobado:
 
 ```powershell
-python -m agora --run-id <ejecución> --resume
+python -m agora --run-id <run-id> --resume
 ```
 
 **Pedir un cambio** a una ejecución terminada. Entra por la fase indicada, muestra qué se rehace y
 pide confirmación:
 
 ```powershell
-python -m agora --run-id <ejecución> --change prd "Agregar busqueda por nombre"
+python -m agora --run-id <run-id> --change prd "Agregar busqueda por nombre"
 ```
 
 ## 5. Evidencia con modelo real
