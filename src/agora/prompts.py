@@ -1,3 +1,5 @@
+"""The system prompts of the experts: their role and the shape of their answer."""
+
 import json
 
 from pydantic import BaseModel
@@ -40,6 +42,7 @@ def shape(schema: type[BaseModel]) -> dict:
     definitions = json_schema.get("$defs", {})
 
     def walk(node: dict):
+        """The plain shape of one node of the JSON schema, following $ref."""
         if "$ref" in node:  # "#/$defs/Ask" -> the definition of Ask
             return walk(definitions[node["$ref"].split("/")[-1]])
         if node.get("type") == "object":
@@ -52,6 +55,7 @@ def shape(schema: type[BaseModel]) -> dict:
 
 
 def system_prompt(role: str, schema: type[BaseModel]) -> str:
+    """The system prompt of an expert: its role and the shape of its answer."""
     return (
         f"{ROLES[role]}\n\n"
         f"Answer only with one JSON object with this shape, filled with your content, "

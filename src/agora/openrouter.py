@@ -1,3 +1,5 @@
+"""Client for OpenRouter chat completions, with retries for temporary failures."""
+
 import asyncio
 
 import httpx
@@ -8,12 +10,15 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 class OpenRouterModel:
+    """A model served by OpenRouter, asked to answer with one JSON object."""
+
     def __init__(self, api_key: str, model: str, client: httpx.AsyncClient):
         self.api_key = api_key
         self.model = model
         self.client = client
 
     async def complete(self, system: str, user: str) -> str:
+        """Ask the model, retrying temporary failures up to 3 times with backoff."""
         for attempt in range(1, 4):  # attempts 1, 2 and 3
             try:
                 return await self._complete_once(system, user)
@@ -23,6 +28,9 @@ class OpenRouterModel:
                 await asyncio.sleep(2 ** (attempt - 1))  # waits 1s, then 2s
 
     async def _complete_once(self, system: str, user: str) -> str:
+        """One request. Network errors, 429 and 5xx are temporary; other 4xx
+        are permanent.
+        """
         try:
             response = await self.client.post(
                 OPENROUTER_URL,

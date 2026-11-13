@@ -1,3 +1,5 @@
+"""Persistence of the board in SQLite: task states and every artifact version."""
+
 import json
 import sqlite3
 from pathlib import Path
@@ -35,6 +37,7 @@ class BoardStore:
     def save(self, run_id: str, board: Board) -> None:
         # One transaction for everything: a task is never stored as approved without its
         # artifact. If anything fails inside the block, nothing is written.
+        """Save every task of the board, and new artifact versions, in one transaction."""
         with self.conn:
             for task in board.tasks.values():
                 self.conn.execute(
@@ -53,6 +56,7 @@ class BoardStore:
 
     def _save_version(self, run_id: str, task: Task) -> None:
         # Old versions are kept: a new row is added only when the artifact changed.
+        """Add the artifact as a new version if it changed."""
         latest = self.conn.execute(
             "SELECT version, content FROM artifact_versions"
             " WHERE run_id = ? AND task = ? ORDER BY version DESC LIMIT 1",
@@ -67,6 +71,7 @@ class BoardStore:
         )
 
     def versions(self, run_id: str, task_name: str) -> list[str]:
+        """Every stored version of the artifact of a task, oldest first."""
         rows = self.conn.execute(
             "SELECT content FROM artifact_versions WHERE run_id = ? AND task = ? ORDER BY version",
             (run_id, task_name),
@@ -74,6 +79,7 @@ class BoardStore:
         return [row[0] for row in rows]
 
     def load(self, run_id: str) -> Board:
+        """Rebuild the board of a stored run; raises KeyError if it does not exist."""
         rows = self.conn.execute(
             "SELECT name, status, depends_on, attempts, artifact FROM tasks WHERE run_id = ?",
             (run_id,),
@@ -91,4 +97,5 @@ class BoardStore:
         return Board(tasks)
 
     def close(self) -> None:
+        """Close the database connection."""
         self.conn.close()

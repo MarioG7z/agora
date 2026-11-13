@@ -1,3 +1,5 @@
+"""Command line entry point: builds every piece, runs the orchestrator, shows the run."""
+
 import argparse
 import asyncio
 import os
@@ -59,6 +61,7 @@ async def run(
     console: Console | None = None,
     pause: float = 0,
 ) -> None:
+    """One run: new, resumed or with a change, with the live tree and then the delivery."""
     console = console or Console()
     store = BoardStore(Path("workspace") / "agora.db")
     changes = {}
@@ -102,6 +105,7 @@ async def run(
 
 
 def main() -> None:
+    """Read the command line arguments and start the run."""
     parser = argparse.ArgumentParser(prog="agora", description="AGORA: equipo multiagente")
     parser.add_argument("request", nargs="?", default=DEMO_REQUEST, help="La tarea a construir")
     parser.add_argument("--run-id", default=datetime.now().strftime("run-%Y%m%d-%H%M%S"))

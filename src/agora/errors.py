@@ -1,3 +1,6 @@
+"""AGORA's own exceptions, one per kind of failure."""
+
+
 class TransientError(Exception):
     """A temporary failure, such as a timeout, that may succeed if retried."""
 

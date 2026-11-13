@@ -46,6 +46,7 @@ OBJECTIVES = {
 
 
 def phase_name(task_name: str) -> str:
+    """The phase name shown to the user for a task."""
     return PHASES.get(task_name, (task_name, ""))[0]
 
 
@@ -88,6 +89,7 @@ class LiveTree:
         self.last_reason: dict[str, str] = {}  # first problem of the last rejection of each task
 
     def update(self, event: Event) -> None:
+        """Record what the board does not keep: start times and rejection reasons."""
         if event.kind == "started":
             self.started_at[event.task] = self.clock()
         if event.kind in {"rejected", "failed"}:
@@ -121,6 +123,7 @@ class LiveTree:
         return "espera una decisión"
 
     def render(self) -> RenderableType:
+        """The tree, with a spinner and a clock on the working task, and the last rejection."""
         tree = Tree(Text(self.title, style="bold"))
         for name in self.board.order:
             task = self.board.tasks[name]

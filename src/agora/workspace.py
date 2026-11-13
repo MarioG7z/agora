@@ -1,3 +1,5 @@
+"""The folder of a run: bounded file writing and pytest with a time limit."""
+
 import asyncio
 import sys
 from dataclasses import dataclass
@@ -7,6 +9,7 @@ from agora.errors import PermanentError
 
 
 def read_file(path: str | Path) -> str:
+    """Read a text file; a failure becomes a PermanentError."""
     try:
         return Path(path).read_text(encoding="utf-8")
     except OSError as error:
@@ -15,6 +18,8 @@ def read_file(path: str | Path) -> str:
 
 @dataclass
 class PytestRun:
+    """The outcome of one pytest run: whether every test passed, and its output."""
+
     passed: bool
     output: str
 
@@ -28,6 +33,7 @@ class Workspace:
     def write_file(self, relative_path: str, content: str) -> Path:
         # resolve() collapses "..", and joining an absolute path replaces the root,
         # so both ways of escaping end up outside the root and are rejected here.
+        """Write a file inside the workspace; a path that escapes it is rejected."""
         target = (self.root / relative_path).resolve()
         if not target.is_relative_to(self.root):
             raise PermanentError(f"Path outside the workspace: {relative_path}")
@@ -36,6 +42,7 @@ class Workspace:
         return target
 
     async def run_pytest(self, time_limit: float = 60.0) -> PytestRun:
+        """Run pytest in the workspace and capture its output, within `time_limit` seconds."""
         process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-m",
