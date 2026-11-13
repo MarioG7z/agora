@@ -52,6 +52,23 @@ copy .env.example .env
 
 ## 4. Ejecución
 
+```powershell
+python -m agora [petición] [opciones]
+```
+
+| Opción | Qué hace | Por defecto |
+|---|---|---|
+| `petición` | La tarea a construir, entre comillas | La petición del inventario |
+| `--real` | Usa el modelo de OpenRouter configurado en `.env` en lugar del simulado | Modelo simulado, sin tokens |
+| `--run-id NOMBRE` | Nombre de la ejecución. Con él se nombran su carpeta de código y su registro, y se identifica al reanudarla o pedirle un cambio | `run-` con la fecha y la hora |
+| `--resume` | Reanuda la ejecución `--run-id` sin repetir lo aprobado | — |
+| `--change FASE TEXTO` | Pide un cambio a la ejecución terminada `--run-id`. Entra por `FASE` (`research`, `prd`, `spec` o `implementation`), muestra qué fases se rehacen y pide confirmación | — |
+| `--pausa SEGUNDOS` | Con el simulado, espera antes de cada respuesta, como un modelo real | 0 |
+| `-h`, `--help` | Muestra la ayuda | — |
+
+Cada ejecución deja su código en `workspace/<run-id>/`, su registro de eventos en
+`logs/<run-id>.jsonl` y el estado de su tablero en `workspace/agora.db`.
+
 **Con el modelo simulado**, sin tokens:
 
 ```powershell
