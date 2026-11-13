@@ -123,6 +123,12 @@ Un **artefacto** es lo que entrega una fase: un documento estructurado que consu
 | Spec | Arquitecto | `PRD` | `Spec`: cómo se construye, con modelos de datos, interfaces, archivos y plan de pruebas | Desarrollador y auditor |
 | Implementation | Desarrollador | `Spec` | `Implementation`: archivos escritos y resultado de cada prueba | Auditor y usuario |
 
+El Desarrollador es el único experto que no entrega su artefacto directamente. El modelo escribe
+el código (`CodeDraft`: cada archivo con su contenido); el sistema lo escribe en la carpeta de
+trabajo, ejecuta pytest y arma el `Implementation` con los resultados **medidos**. Un modelo no
+puede reportar si sus propias pruebas pasan: eso lo mide el código. Cada función de prueba lleva
+el id de su prueba planeada (`test_t2_...` para `T-2`), y así se enlaza cada resultado con la Spec.
+
 Las fases se ejecutan en orden, y el auditor revisa la salida de cada una antes de que avance:
 
 ```mermaid
@@ -157,15 +163,18 @@ Esta misma lógica se extiende al diseño del esquema: **cada campo debe tener u
 
 ### 5.2 Campos principales
 
-Primera versión de los campos. Los nombres definitivos se fijan al escribir los modelos de Pydantic,
-y esta tabla se actualiza entonces para reflejarlos.
+Campos tal como están en `src/agora/contracts.py`. Un campo nuevo entra solo cuando algún consumidor
+(otra fase o una regla del auditor) lo necesita.
 
-| Artefacto | Campos clave |
+| Artefacto | Campos |
 |---|---|
-| `ResearchBrief` | problema; pedidos `[{id: ASK-n, descripción}]`; hallazgos `[{afirmación, fuente}]`; supuestos; alcance dentro y fuera |
-| `PRD` | requisitos `[{id: REQ-n, descripción, criterios_aceptación[], cubre: [ASK]}]`; fuera de alcance |
-| `Spec` | modelos de datos; interfaces `[{nombre, cubre: [REQ]}]`; archivos `[{ruta, propósito}]`; pruebas `[{id: T-n, descripción, cubre: [REQ]}]` |
-| `Implementation` | archivos escritos; resultado por prueba (pasa o falla, con su salida); notas |
+| `ResearchBrief` | `problem`; `asks: [{id: ASK-n, description}]`; `findings: [{claim, source}]` |
+| `PRD` | `requirements: [{id: REQ-n, description, acceptance_criteria[], covers: [ASK]}]` |
+| `Spec` | `interfaces: [{name, covers: [REQ]}]`; `files: [{path, purpose}]`; `tests: [{id: T-n, description, covers: [REQ]}]` |
+| `Implementation` | `files[]` (rutas escritas); `test_results: [{test_id, passed, output}]` |
+
+Frente a la primera versión quedaron fuera los supuestos, el alcance, los modelos de datos de la
+Spec y las notas de la implementación, porque ningún consumidor los necesitaba todavía.
 
 ### 5.3 La cadena de trazabilidad
 
@@ -228,6 +237,10 @@ una tabla; cualquier otra lanza un error. Por ejemplo, una tarea no puede pasar 
 | `aprobada → invalidada` | El orquestador, en la cascada de invalidación |
 | `aprobada → en_curso` | El usuario, al confirmar un cambio que entra por esa fase |
 | `en_curso → pendiente` | El orquestador, al reanudar una ejecución interrumpida |
+| `invalidada → pendiente` | El orquestador, cuando las dependencias vuelven a estar aprobadas |
+| `esperando_usuario → en_curso` | El usuario, al decidir que la tarea se reintente |
+
+Cada vez que una tarea entra a `en_curso` cuenta un intento nuevo.
 
 ### 6.3 Dependencias como grafo
 
@@ -235,10 +248,11 @@ Las tareas y sus dependencias forman un **grafo dirigido acíclico** (DAG): las 
 tarea a las que dependen de ella y no hay ciclos. De ahí salen dos operaciones:
 
 - **Qué ejecutar:** una tarea pasa a `en_curso` solo cuando todas sus dependencias están aprobadas.
-  Es un orden topológico del grafo.
+  Es un orden topológico del grafo, calculado con `graphlib` de la biblioteca estándar. Al crear el
+  tablero se rechazan las dependencias desconocidas y los ciclos.
 - **Invalidación en cascada:** cuando una tarea produce una versión nueva de su artefacto, se
-  recorre el grafo hacia adelante (en anchura o en profundidad) y toda tarea alcanzable pasa a
-  `invalidada`.
+  recorre el grafo hacia adelante, en anchura, y toda tarea alcanzable que ya tenía resultado
+  (aprobada o fallida) pasa a `invalidada`. Las que seguían pendientes simplemente esperan.
 
 Las versiones anteriores de cada artefacto no se borran; quedan en el historial para mostrar qué
 cambió y por qué.
@@ -249,6 +263,12 @@ Si el proceso se interrumpe, al reanudar puede haber tareas en `en_curso` sin sa
 terminaron. La regla es tratarlas como no terminadas y devolverlas a `pendiente`. Para que esa
 regla no deje datos inconsistentes, el artefacto se guarda y la tarea se marca como hecha **en la
 misma transacción** de la base de datos: nunca existe una tarea aprobada sin su artefacto.
+
+La base de datos es SQLite, con dos tablas: `tasks` guarda el estado actual de cada tarea de una
+ejecución, y `artifact_versions` añade una fila cada vez que un artefacto cambia, sin borrar las
+anteriores. Una tarea que quedó `en_auditoría` se trata igual que una `en_curso`: vuelve a
+`pendiente` y su agente se ejecuta otra vez. Cuesta una llamada, pero evita guardar auditorías a
+medias.
 
 ## 7. Fallos y re-ejecución
 
@@ -293,6 +313,10 @@ que se repite es la implementación, que corrige el código con la información 
 
 El auditor propone la fase de origen en su veredicto. El código valida que sea una transición
 permitida y aplica los límites de intentos.
+
+**Versión implementada.** Una falla bloqueante repite **la misma fase**, con el veredicto añadido a
+su entrada, hasta 3 intentos por fase; agotados, la tarea pasa a `fallida` y la ejecución se
+detiene. Subir a la fase anterior cuando el defecto nace antes queda como mejora (sección 13).
 
 ## 8. El auditor y las reglas de validación
 
@@ -340,12 +364,21 @@ sin_cubrir = ids_prd − ids_cubiertos      # requisitos que nada cubre
 colgantes  = ids_cubiertos − ids_prd      # referencias a requisitos inexistentes
 ```
 
+**Versión implementada.** Están todas las reglas C salvo la de fuentes recuperadas, que necesita
+conectar la búsqueda con Tavily a la fase de Planning. Los módulos prohibidos se detectan buscando
+su nombre en el texto de cada archivo, una comprobación deliberadamente simple. Las reglas L llegan
+con el juez (B8).
+
 ### 8.3 Veredicto
 
 Cada regla produce un resultado estructurado: regla, si pasó, severidad, evidencia y fase de
 origen. La severidad es `bloqueante` o `advertencia`; solo las bloqueantes disparan una
-re-ejecución, y las advertencias van al reporte. Los detalles del formato se fijan al escribir el
-auditor.
+re-ejecución, y las advertencias van al reporte.
+
+En el código, cada regla produce un `RuleResult` (regla, si pasó, evidencia y si es bloqueante). La
+evidencia son los ids concretos que fallaron, por ejemplo `ASK-2`. El `Verdict` de un artefacto
+aprueba cuando todas sus reglas bloqueantes pasan, y su resumen es lo que recibe el agente en el
+siguiente intento.
 
 ### 8.4 El juez con modelo
 
@@ -396,6 +429,12 @@ orquestador / agentes / auditor
                       ──► terminal en vivo
                       ──► hooks
 ```
+
+**Versión implementada.** El bus es el propio generador del orquestador: quien consume `run()`
+reparte cada evento. La terminal lo muestra y `EventLog` lo escribe en `logs/<ejecución>.jsonl`,
+con hora, ejecución, tipo, tarea, intento y detalle. El tablero se guarda en SQLite desde el
+orquestador tras cada transición. Una clase de bus aparte, la traza en spans y los hooks quedan
+como mejora, porque con un solo consumidor activo no hacían falta todavía.
 
 Un **hook** es un suscriptor más. Hay dos clases: los que **observan** (registran o avisan) y los
 que **intervienen**, que pueden bloquear un paso; por ejemplo, impedir que el Desarrollador escriba
@@ -471,6 +510,30 @@ El orquestador clasifica el pedido con el modelo de lenguaje y devuelve la fase 
 código valida que la fase sea una de las cuatro, muestra el efecto ("este cambio entra por PRD; se
 rehacen PRD, Spec e Implementation") y pide **confirmación** al usuario antes de gastar tokens.
 
+**Versión implementada.**
+
+- **Árbol en vivo.** La terminal es un consumidor más de los eventos de `run()`: lee el estado de
+  cada tarea del tablero y redibuja el árbol tras cada evento, con fase, agente, estado e intento.
+  Los intentos rechazados cuelgan de su tarea con la primera regla que falló, y debajo del árbol
+  se muestra completo el último rechazo o fallo. Las búsquedas, los conteos de ASK y REQ y los
+  tiempos del ejemplo quedan como mejora.
+- **Entrega.** Una tabla por fase (agente, estado, intentos), la cadena pedido → requisito →
+  pruebas → resultado cuando las cuatro fases quedaron aprobadas, y las rutas del código
+  (`workspace/<ejecución>/`) y del registro (`logs/<ejecución>.jsonl`). Las llamadas, los tokens,
+  la tabla de reglas y los comandos interactivos (`ver prd`, `traza`) quedan como mejora.
+- **Cambios.** El usuario elige la fase: `--change FASE "texto"` junto con `--run-id` de una
+  ejecución terminada. La clasificación con el modelo queda como mejora. El código marca la fase
+  como `invalidada` (no `en_curso`, como dice la tabla de la sección 6.2), invalida en cascada a
+  sus dependientes, muestra qué fases se rehacen y pide confirmación; si se rechaza, nada se
+  guarda. La fase cambiada recibe el texto del cambio añadido a su entrada, y cada tarea que vuelve
+  a la cola tras un cambio empieza una ronda nueva de intentos. El pedido original no se guarda: si
+  el cambio entra por Planning, hay que volver a pasarlo en la línea de órdenes.
+
+```
+python -m agora --run-id run-1
+python -m agora --run-id run-1 --change spec "Agrega una prueba para una categoría con acentos"
+```
+
 ## 11. Tecnologías
 
 | Pieza | Elección | Motivo |
@@ -491,9 +554,9 @@ Una interfaz web simple se agrega solo si sobra tiempo.
 modelo candidato y su tasa de JSON válido. El juez de las reglas L usa un modelo distinto del
 generador.
 
-**Organización del código.** `[POR CONFIRMAR]` Un paquete `agora` con un módulo por pieza:
-`contracts` (artefactos), `llm`, `agents`, `board` (tablero), `orchestrator`, `audit`, `events`,
-`tools` y `cli`.
+**Organización del código.** Un paquete `agora` en `src/agora`. Cada módulo se crea cuando un
+bloque lo necesita, empezando por `contracts` (artefactos), y se prefiere el código simple y
+legible a una estructura completa desde el inicio.
 
 ## 12. Plan de bloques
 
@@ -504,9 +567,9 @@ Los bloques se construyen en este orden.
 |---|---|---|---|
 | B0 Andamiaje | `pyproject`, ruff, pytest, estructura de carpetas | `pytest` corre sin pruebas y ruff pasa | `chore/andamiaje` |
 | B1 Contratos y cliente | Modelos Pydantic de los artefactos; interfaz del cliente de modelos y modelo simulado | Pruebas de validación de cada artefacto | `feat/contratos` |
-| B2 Agente base | Llamada al modelo, validación, reintento con el error, errores por tipo, eventos | Un agente con el simulado reintenta ante un JSON inválido | `feat/agente-base` |
+| B2 Agente base | Llamada al modelo, validación, reintento con el error, errores por tipo | Un agente con el simulado reintenta ante un JSON inválido | `feat/agente-base` |
 | B3 Tablero | Tareas, intentos, transiciones validadas, grafo de dependencias, SQLite | Pruebas de transiciones prohibidas, cascada y reanudación | `feat/tablero` |
-| B4 Orquestador | Ejecución en orden topológico de los cuatro agentes, bus de eventos, streaming | Ejecución completa con el simulado, con eventos en vivo | `feat/orquestador` |
+| B4 Orquestador | Ejecución en orden topológico de los cuatro agentes, bus de eventos, eventos de agentes y tareas, streaming | Ejecución completa con el simulado, con eventos en vivo | `feat/orquestador` |
 | B5 Auditor | Reglas C, veredicto, política de re-ejecución por capas | El simulado entrega una Spec defectuosa; el auditor la rechaza y el segundo intento pasa | `feat/auditor` |
 | B6 Herramientas | Tavily con límite de tasa y reintentos, lectura de archivos, escritura en la carpeta de trabajo, pytest en subproceso con límite de tiempo | Pruebas con respuestas grabadas de Tavily | `feat/herramientas` |
 | B7 Ciclo con el usuario | Árbol en vivo, entrega, comandos y cambios con confirmación y cascada | Un cambio de ejemplo entra por la fase correcta | `feat/ciclo-usuario` |
@@ -522,6 +585,9 @@ del MVP en un contenedor de Docker y una interfaz web simple.
 ## 13. Fuera de alcance y mejoras futuras
 
 - Cambios a mitad de ejecución, con cancelación de las tareas en curso.
+- Subir a la fase de origen cuando el auditor detecta que el defecto nace en una fase anterior.
+- Una clase de bus de eventos, la traza en spans y los hooks que intervienen (sección 9.2).
+- La regla de fuentes recuperadas, conectando la búsqueda con Tavily a la fase de Planning.
 - Exportar la traza a OpenTelemetry o a Langfuse.
 - *Mutation testing* para medir la calidad de las pruebas generadas.
 - Calibrar al juez con un conjunto de pruebas buenas y malas etiquetadas a mano, y medir su acierto
@@ -547,6 +613,7 @@ del MVP en un contenedor de Docker y una interfaz web simple.
 9. Un solo flujo de eventos para registro, traza, terminal y hooks.
 10. Cambios solo después de la entrega, por la fase más temprana afectada y con confirmación.
 11. Interfaz de terminal; web solo si sobra tiempo. Repositorio propio.
+12. Módulos creados conforme los necesita cada bloque, con código simple antes que estructura completa.
 
 **Abiertas:**
 
@@ -555,4 +622,3 @@ del MVP en un contenedor de Docker y una interfaz web simple.
 3. Modelo generador, modelo juez y modelo alterno (sección 11).
 4. Presupuesto por ejecución: llamadas y tokens máximos.
 5. Cliente de modelos: HTTP propio o SDK compatible con OpenAI.
-6. Organización del código en módulos (sección 11).

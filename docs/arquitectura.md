@@ -1,5 +1,5 @@
 # Arquitectura de AGORA
-**Fecha:** 2026-11-10.
+**Fecha:** 2026-11-10, actualizado el 2026-11-12.
 **Alcance:** vista breve de AGORA (Arquitectura de Gestión y Orquestación de Razonamiento
 Agéntico) para quien revisa el reto *Research Agent Teams*: qué hace, cómo reparte el trabajo,
 cómo audita y cómo se recupera de los fallos. El detalle de cada mecanismo está en
@@ -176,3 +176,22 @@ gastar tokens. La cascada rehace lo demás.
 - El juez con modelo debería calibrarse contra ejemplos etiquetados a mano.
 - La ejecución del código generado debería aislarse en un contenedor.
 - La traza podría exportarse a OpenTelemetry o Langfuse.
+
+## 10. Estado de la implementación
+
+| Pieza del diseño | Estado |
+|---|---|
+| Cuatro expertos, artefactos validados y reintento con el error | Implementado |
+| Tablero con máquina de estados, dependencias, cascada y reanudación en SQLite | Implementado |
+| Auditor con reglas en código y repetición de la fase con el veredicto | Implementado |
+| Registro JSON por evento y árbol en vivo en la terminal | Implementado |
+| Cambios del usuario con confirmación y cascada | Implementado, indicando la fase a mano |
+| Juez con modelo (reglas L) | Pendiente |
+| Subir a la fase de origen cuando el defecto nace antes | Pendiente: la fase rechazada se repite a sí misma |
+| Árbol de *spans* y registro del costo | Pendiente |
+| Ejecutar el código generado como servicio, en un entorno aislado | Pendiente: hoy se genera la lógica y se prueba con pytest |
+
+Las diferencias se explican en las notas "Versión implementada" de
+[arquitectura-detalle.md](arquitectura-detalle.md). Las reglas implementadas están en
+[reglas.md](reglas.md), y la evidencia con modelo real, en
+[hallazgos-modelo-real.md](hallazgos-modelo-real.md).
