@@ -108,7 +108,11 @@ def main() -> None:
     """Read the command line arguments and start the run."""
     parser = argparse.ArgumentParser(prog="agora", description="AGORA: equipo multiagente")
     parser.add_argument("request", nargs="?", default=DEMO_REQUEST, help="La tarea a construir")
-    parser.add_argument("--run-id", default=datetime.now().strftime("run-%Y%m%d-%H%M%S"))
+    parser.add_argument(
+        "--run-id",
+        default=datetime.now().strftime("run-%Y%m%d-%H%M%S"),
+        help="Nombre de la ejecución; por defecto, run- con la fecha y la hora",
+    )
     parser.add_argument("--resume", action="store_true", help="Reanuda la ejecución --run-id")
     parser.add_argument("--real", action="store_true", help="Usa OpenRouter en vez del simulado")
     parser.add_argument(
