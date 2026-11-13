@@ -4,6 +4,13 @@
 **Alcance:** diecinueve ejecuciones de AGORA con dos modelos reales sobre la tarea de ejemplo. Recoge qué
 falló, la causa comprobada o la hipótesis, qué se cambió y qué queda por decidir.
 
+Cada falla se documentó con su causa antes de cambiar código o prompts, y desde la quinta ejecución
+cada cambio se probó con al menos dos ejecuciones, porque el modelo varía entre llamadas. Los
+hallazgos principales fueron que un veredicto sin causa no permite al modelo corregirse, que un
+concepto sin definir en el prompt o en el veredicto queda a interpretación del modelo, que un
+reintento sin la respuesta anterior reescribe desde cero errores ya corregidos, y que un defecto
+detectado en una fase puede nacer en una anterior.
+
 ## 1. Condiciones
 
 | Dato | Valor |
