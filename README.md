@@ -75,8 +75,8 @@ Peticiones de ejemplo, de menor a mayor dificultad:
 | Nivel | Petición | Qué pone a prueba | Ejecutada con modelo real |
 |---|---|---|---|
 | Básico | `"Una API para consultar un inventario de productos y filtrarlos por categoria"` | Dos pedidos y una sola función de consulta | Sí, `real-1` a `real-19` (sección 5) |
-| Intermedio | `"Un sistema de prestamos para una biblioteca: prestar y devolver libros, impedir prestar un libro que ya esta prestado y listar los prestamos vencidos"` | Estado que cambia (prestado o devuelto), una regla de negocio y fechas, que las pruebas deben fijar para ser repetibles | No |
-| Difícil | `"Un sistema de reservas de salas de juntas: reservar una sala en un horario, rechazar reservas que se traslapen, cancelar reservas y consultar que salas estan libres en un horario"` | Cuatro pedidos que enlazar en la trazabilidad y traslape de intervalos con casos límite, como dos reservas contiguas | No |
+| Intermedio | `"Un sistema de prestamos para una biblioteca: prestar y devolver libros, impedir prestar un libro que ya esta prestado y listar los prestamos vencidos"` | Estado que cambia (prestado o devuelto), una regla de negocio y fechas, que las pruebas deben fijar para ser repetibles | Sí, `real-20`: completa, cada fase al primer intento |
+| Difícil | `"Un sistema de reservas de salas de juntas: reservar una sala en un horario, rechazar reservas que se traslapen, cancelar reservas y consultar que salas estan libres en un horario"` | Cuatro pedidos que enlazar en la trazabilidad y traslape de intervalos con casos límite, como dos reservas contiguas | Sí, `real-21`: completa, con un rechazo de la Spec; un pedido quedó cubierto a medias (sección 5) |
 
 Las peticiones se escriben sin acentos para evitar problemas de codificación en la terminal de
 Windows.
@@ -96,10 +96,12 @@ python -m agora --run-id <ejecución> --change prd "Agregar busqueda por nombre"
 
 ## 5. Evidencia con modelo real
 
-Se hicieron diecinueve ejecuciones con dos modelos de OpenRouter sobre la petición básica. Con
+Se hicieron veintiuna ejecuciones con dos modelos de OpenRouter. Sobre la petición básica, con
 `qwen/qwen3-coder-30b-a3b-instruct` y la configuración final, tres de las últimas cuatro
-completaron la cadena; antes de los dos últimos cambios, una de seis. Cada falla, su causa, el
-cambio que provocó y su efecto están en
+completaron la cadena; antes de los dos últimos cambios, una de seis. Las peticiones intermedia y
+difícil se completaron en su primera ejecución. Al leer su código aparecen defectos que las reglas
+no detectan, como un pedido cubierto a medias: las reglas garantizan la cobertura, no la calidad.
+Cada falla, su causa, el cambio que provocó y su efecto están en
 [docs/hallazgos-modelo-real.md](docs/hallazgos-modelo-real.md).
 
 ## 6. Código

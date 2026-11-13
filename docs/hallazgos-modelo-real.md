@@ -1,8 +1,8 @@
 # Hallazgos de las corridas con modelo real
 
 **Fecha:** 2026-11-11, actualizado el 2026-11-12.
-**Alcance:** diecinueve ejecuciones de AGORA con dos modelos reales sobre la tarea de ejemplo. Recoge qué
-falló, la causa comprobada o la hipótesis, qué se cambió y qué queda por decidir.
+**Alcance:** veintiuna ejecuciones de AGORA con dos modelos reales: diecinueve sobre la petición
+básica y dos sobre peticiones más difíciles. Recoge qué falló, la causa comprobada o la hipótesis, qué se cambió y qué queda por decidir.
 
 Cada falla se documentó con su causa antes de cambiar código o prompts, y desde la quinta ejecución
 cada cambio se probó con al menos dos ejecuciones, porque el modelo varía entre llamadas. Los
@@ -15,8 +15,8 @@ detectado en una fase puede nacer en una anterior.
 
 | Dato | Valor |
 |---|---|
-| Modelos | `mistralai/ministral-8b-2512` (`real-1` a `real-9`) y `qwen/qwen3-coder-30b-a3b-instruct` (`real-10` a `real-19`), vía OpenRouter, el mismo para los cuatro expertos en cada ejecución |
-| Tarea | "Una API para consultar un inventario de productos y filtrarlos por categoria" |
+| Modelos | `mistralai/ministral-8b-2512` (`real-1` a `real-9`) y `qwen/qwen3-coder-30b-a3b-instruct` (`real-10` a `real-21`), vía OpenRouter, el mismo para los cuatro expertos en cada ejecución |
+| Tarea | "Una API para consultar un inventario de productos y filtrarlos por categoria" (`real-1` a `real-19`); préstamos de una biblioteca (`real-20`) y reservas de salas de juntas (`real-21`), con el texto exacto en la sección 4 del README |
 | Herramientas | Sin búsqueda web: la fase de Planning todavía no usa Tavily |
 | Auditor | Solo reglas en código (reglas C, sección 8.2 del diseño) |
 
@@ -44,6 +44,8 @@ y del tablero guardado en SQLite (`workspace/agora.db`).
 | `real-17` | 62 s | **Ejecución completa**; Implementation al primer intento |
 | `real-18` | 109 s | **Ejecución completa**; Implementation corrige Flask en el segundo intento |
 | `real-19` | 74 s | **Ejecución completa**; Implementation corrige los nombres en el segundo intento |
+| `real-20` | 79 s | **Ejecución completa**, petición intermedia; todas las fases al primer intento |
+| `real-21` | 60 s | **Ejecución completa**, petición difícil; un rechazo de la Spec |
 
 ## 2. Error sin causa (`real-1`)
 
@@ -263,7 +265,39 @@ modelo.
 tres se completaron (`real-17` a `real-19`). Antes de los cambios de esta sección y de la sección
 10, solo una de seis (`real-13`).
 
-## 12. Decisiones
+## 12. Peticiones de mayor dificultad (`real-20` y `real-21`)
+
+Con la configuración final, sin cambios de código, se ejecutaron dos peticiones con más pedidos y
+reglas de negocio: préstamos de una biblioteca y reservas de salas de juntas.
+
+| | `real-20`, préstamos | `real-21`, reservas |
+|---|---|---|
+| Planning y PRD | 4 pedidos y 4 requisitos, al primer intento | 4 pedidos y 4 requisitos, al primer intento |
+| Spec | Aprobada al primer intento: 4 archivos, 4 pruebas | 1 rechazo por falta de archivo de pruebas; aprobada en el segundo |
+| Implementation | Aprobada al primer intento | Aprobada al primer intento |
+| Pruebas al repetir pytest | 4 de 4 pasan | 4 de 4 pasan |
+
+Las dos completaron la cadena. Al leer el código generado aparecen tres defectos que las reglas no
+detectan:
+
+1. **Nombre de ejemplo copiado.** El prompt del Desarrollador da como ejemplo
+   `test_t1_lists_all_products`. Cinco de las ocho pruebas se llaman `test_tN_lists_all_products`
+   aunque prueban préstamos o reservas. La regla de nombres solo exige el prefijo `test_tN`. Es la
+   otra cara del hallazgo 8: un ejemplo en el prompt también queda a interpretación del modelo, y
+   este lo copió literal.
+2. **Pedido cubierto a medias.** En `real-21`, ASK-4 pide consultar qué salas están libres en un
+   horario. El código responde si una sala dada está libre, pero no lista las salas libres. La
+   cadena ASK-4 → REQ-4 → T-4 está completa y la prueba pasa, por eso el auditor aprueba.
+   Detectarlo requiere comparar significados (decisión abierta 1).
+3. **Pruebas sin el caso límite.** En `real-21` el traslape se calcula bien: al probarlo a mano, dos
+   reservas contiguas (de 9 a 10 y de 10 a 11) se aceptan. Pero ninguna prueba generada lo
+   comprueba. En `real-20`, la prueba de préstamos vencidos no comprueba que un préstamo vigente
+   quede fuera de la lista.
+
+Con más pedidos el sistema mantiene la cadena de cobertura. La calidad de lo generado depende de lo
+que exijan las pruebas planeadas, y hoy ninguna regla lo revisa.
+
+## 13. Decisiones
 
 **Tomadas**
 
@@ -292,6 +326,10 @@ tres se completaron (`real-17` a `real-19`). Antes de los cambios de esta secci�
    anterior del agente, y además el historial de veredictos, no solo el último.
 5. Elegir el modelo por fase: con la evidencia de este documento, `qwen3-coder` mantiene el alcance
    y escribe código que pasa; `ministral-8b` infla el alcance desde Planning.
+6. Cambiar el nombre de ejemplo del prompt del Desarrollador por una forma sin contenido, como
+   `test_t1_<qué comprueba>`, y probarlo con al menos dos ejecuciones (hallazgo 12).
+7. Una regla L que revise si las pruebas planeadas comprueban los criterios de aceptación,
+   incluidos sus casos límite (hallazgo 12).
 
 Los cambios abiertos se aplican de uno en uno, con una ejecución después de cada uno, para atribuir
 cada efecto a su causa.
