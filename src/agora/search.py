@@ -1,3 +1,5 @@
+"""Client for Tavily web search, capped per run, with retries for temporary failures."""
+
 import asyncio
 
 import httpx
@@ -9,12 +11,16 @@ TAVILY_URL = "https://api.tavily.com/search"
 
 
 class SearchResult(BaseModel):
+    """One result of a web search."""
+
     title: str
     url: str
     content: str
 
 
 class TavilySearch:
+    """Web search with Tavily, capped per run to protect the limited credits."""
+
     def __init__(
         self,
         api_key: str,
@@ -32,6 +38,7 @@ class TavilySearch:
 
     async def search(self, query: str) -> list[SearchResult]:
         # The cap protects the limited Tavily credits. The caller decides how to go on without it.
+        """Search the web, retrying temporary failures with exponential backoff."""
         if self.searches_done >= self.max_searches:
             raise PermanentError(f"Search limit reached ({self.max_searches} per run)")
         self.searches_done = self.searches_done + 1
@@ -46,6 +53,9 @@ class TavilySearch:
                 await asyncio.sleep(self.base_delay * 2 ** (attempt - 1))
 
     async def _search_once(self, query: str) -> list[SearchResult]:
+        """One request. Network errors, 429 and 5xx are temporary; other 4xx
+        are permanent.
+        """
         try:
             response = await self.client.post(
                 TAVILY_URL,

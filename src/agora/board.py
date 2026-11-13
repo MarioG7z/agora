@@ -1,3 +1,5 @@
+"""The task board: task states, allowed transitions and dependencies between tasks."""
+
 from collections import deque
 from enum import StrEnum
 from graphlib import TopologicalSorter
@@ -6,6 +8,8 @@ from agora.errors import InvalidTransition
 
 
 class Status(StrEnum):
+    """The states of a task. ALLOWED_TRANSITIONS says how a task moves between them."""
+
     PENDING = "pending"
     RUNNING = "running"
     IN_AUDIT = "in_audit"
@@ -27,6 +31,8 @@ ALLOWED_TRANSITIONS = {
 
 
 class Task:
+    """One phase of a run: its state, dependencies, attempts and current artifact."""
+
     def __init__(self, name: str, depends_on: list[str] | None = None):
         self.name = name
         self.status = Status.PENDING
@@ -35,6 +41,10 @@ class Task:
         self.artifact: str | None = None  # current artifact as JSON text
 
     def move_to(self, new_status: Status) -> None:
+        """Move to `new_status` if the transition is allowed, else raise InvalidTransition.
+
+        Entering RUNNING counts one more attempt.
+        """
         if new_status not in ALLOWED_TRANSITIONS[self.status]:
             raise InvalidTransition(f"{self.name}: {self.status} -> {new_status}")
         self.status = new_status
@@ -50,6 +60,10 @@ class Board:
         self.order = self._topological_order()
 
     def _topological_order(self) -> list[str]:
+        """Task names, each after its dependencies.
+
+        Rejects dependencies on unknown tasks and dependency cycles.
+        """
         graph = {name: set(task.depends_on) for name, task in self.tasks.items()}
         for name, deps in graph.items():
             unknown = deps - graph.keys()
@@ -75,6 +89,7 @@ class Board:
         return ready
 
     def dependents(self, name: str) -> list[Task]:
+        """The tasks that depend directly on `name`."""
         return [task for task in self.tasks.values() if name in task.depends_on]
 
     def invalidate_dependents(self, name: str) -> list[str]:

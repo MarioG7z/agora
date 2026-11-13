@@ -1,3 +1,5 @@
+"""The auditor: rules in code that check each artifact against the one it came from."""
+
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -9,6 +11,8 @@ FORBIDDEN_IMPORTS = ["subprocess", "os.system", "shutil.rmtree"]
 
 
 class RuleResult(BaseModel):
+    """The outcome of one rule: whether it passed, its evidence and whether it blocks."""
+
     rule: str
     passed: bool
     evidence: str = ""
@@ -16,14 +20,18 @@ class RuleResult(BaseModel):
 
 
 class Verdict(BaseModel):
+    """Every rule result for one artifact."""
+
     task: str
     results: list[RuleResult]
 
     @property
     def approved(self) -> bool:
+        """Approved when every blocking rule passed; warnings do not count."""
         return all(result.passed for result in self.results if result.blocking)
 
     def summary(self) -> str:
+        """The failed rules with their evidence, one per line: the feedback for a retry."""
         failed = [result for result in self.results if not result.passed]
         if not failed:
             return "All rules passed."
@@ -41,10 +49,12 @@ def check(rule: str, problems: list[str] | set[str], blocking: bool = True) -> R
 
 
 def duplicates(ids: list[str]) -> set[str]:
+    """The ids that appear more than once."""
     return {item for item in ids if ids.count(item) > 1}
 
 
 def check_research(brief: ResearchBrief) -> list[RuleResult]:
+    """Rules for the research brief: at least one ASK, with unique ids."""
     ask_ids = [ask.id for ask in brief.asks]
     return [
         check("There is at least one ASK", [] if ask_ids else ["no asks"]),
@@ -53,6 +63,7 @@ def check_research(brief: ResearchBrief) -> list[RuleResult]:
 
 
 def check_prd(prd: PRD, brief: ResearchBrief) -> list[RuleResult]:
+    """Rules for the PRD: every ASK covered, no dangling ASK ids, criteria, unique ids."""
     asks = {ask.id for ask in brief.asks}
     covered = {ask for req in prd.requirements for ask in req.covers}
     without_criteria = [req.id for req in prd.requirements if not req.acceptance_criteria]
@@ -65,6 +76,7 @@ def check_prd(prd: PRD, brief: ResearchBrief) -> list[RuleResult]:
 
 
 def check_spec(spec: Spec, prd: PRD) -> list[RuleResult]:
+    """Rules for the Spec: REQ coverage, dangling ids, safe Python paths, a test file."""
     reqs = {req.id for req in prd.requirements}
     by_interface = {req for interface in spec.interfaces for req in interface.covers}
     by_test = {req for test in spec.tests for req in test.covers}
@@ -87,6 +99,9 @@ def check_spec(spec: Spec, prd: PRD) -> list[RuleResult]:
 def check_implementation(
     implementation: Implementation, spec: Spec, workspace_root: Path | None
 ) -> list[RuleResult]:
+    """Rules for the code: files written, tests run and passing, pytest errors,
+    test names and forbidden modules.
+    """
     results_by_id = {result.test_id: result for result in implementation.test_results}
     missing_files = {file.path for file in spec.files} - set(implementation.files)
     missing_tests = [test.id for test in spec.tests if test.id not in results_by_id]
@@ -119,6 +134,7 @@ class Auditor:
         self.workspace_root = workspace_root
 
     def review(self, task_name: str, artifact: BaseModel, board: Board) -> Verdict:
+        """Run the rules that match the type of the artifact and return the verdict."""
         if isinstance(artifact, ResearchBrief):
             results = check_research(artifact)
         elif isinstance(artifact, PRD):

@@ -108,6 +108,7 @@ DEMO_REQUEST = "Una API para consultar un inventario de productos y filtrarlos p
 
 
 def make_board() -> Board:
+    """The four phases of a run, each one depending on the previous one."""
     return Board(
         [
             Task("research"),
@@ -146,11 +147,13 @@ class PausedModel:
         self.seconds = seconds
 
     async def complete(self, system: str, user: str) -> str:
+        """Wait, then answer with the wrapped model."""
         await asyncio.sleep(self.seconds)
         return await self.model.complete(system, user)
 
 
 def demo_models(pause: float = 0) -> dict[str, ModelClient]:
+    """One scripted model per expert; with a pause they wait like a real model."""
     models: dict[str, ModelClient] = {
         "research": FakeModel([BRIEF.model_dump_json()]),
         "prd": FakeModel([PRD_MISSING_ASK_2.model_dump_json(), PRD_COMPLETE.model_dump_json()]),

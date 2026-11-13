@@ -1,3 +1,5 @@
+"""The orchestrator: delegates ready tasks to their experts, audits them, streams events."""
+
 from typing import Protocol
 
 from pydantic import BaseModel
@@ -11,6 +13,8 @@ MAX_PHASE_ATTEMPTS = 3  # how many times the auditor may send a task back before
 
 
 class Event(BaseModel):
+    """Something that happened in a run: started, approved, rejected, failed or finished."""
+
     kind: str
     task: str
     detail: str = ""
@@ -24,6 +28,8 @@ class Expert(Protocol):
 
 
 class Orchestrator:
+    """Runs the board: delegates each ready task to its expert and audits the result."""
+
     def __init__(
         self,
         board: Board,
@@ -41,10 +47,16 @@ class Orchestrator:
         self.changes = changes or {}  # task -> change asked by the user, added to its input
 
     def save(self) -> None:
+        """Save the board, if there is a store."""
         if self.store is not None:
             self.store.save(self.run_id, self.board)
 
     async def run(self, request: str):
+        """Run the ready tasks in order, yielding an event for every step.
+
+        Each task receives the artifacts of its dependencies; the first one, the user's request.
+        The run stops when no task is ready or when a task fails.
+        """
         while True:
             ready = self.board.ready()
             if not ready:

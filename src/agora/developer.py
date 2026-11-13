@@ -1,3 +1,5 @@
+"""The Implementation expert: writes the generated code and measures it with pytest."""
+
 import re
 
 from agora.agent import Agent
@@ -17,6 +19,7 @@ SPEC_ID_NAME = re.compile(r"test_t\d+")  # a name that carries its Spec id, like
 
 
 def parse_results(output: str) -> list[ExecutedTest]:
+    """Results of the tests named after their Spec id, read from `pytest -rA`."""
     tail = output[-2000:]  # the end of the output carries the tracebacks of the failures
     results = []
     for line in output.splitlines():
@@ -60,6 +63,10 @@ class Developer:
         self.last_draft: CodeDraft | None = None  # the code of the previous attempt, if any
 
     async def run(self, user: str) -> Implementation:
+        """Ask the model for the code, write it and run pytest on it.
+
+        On a retry the model also receives its previous code, to fix it instead of rewriting it.
+        """
         if self.last_draft is not None:
             user = user + "\n\nYour previous code was:\n" + self.last_draft.model_dump_json()
         draft = await self.agent.run(user)
