@@ -157,6 +157,10 @@ Las pruebas usan el modelo simulado y respuestas HTTP grabadas: no llaman a ning
 
 ## 9. Límites conocidos
 
+- La interfaz es solo la terminal: el foco del reto fue el orquestador. El orquestador entrega los
+  eventos como un flujo y la terminal es solo uno de sus consumidores, así que una interfaz web
+  (React con Vite) sería otro consumidor: un servicio que transmita los eventos al navegador, sin
+  cambiar el orquestador.
 - El código generado contiene la lógica de lo pedido y sus pruebas, en Python sin paquetes
   externos, pero no levanta un servicio: para una API no hay servidor HTTP. Las pruebas corren en
   el mismo entorno que AGORA, donde no se instalan dependencias del código generado. Ejecutarlo
